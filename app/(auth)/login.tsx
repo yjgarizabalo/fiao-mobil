@@ -13,16 +13,57 @@ import {
 } from '@gluestack-ui/themed';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Alert } from 'react-native';
 import { Colors } from '../../constants/Colors';
+import { useAuth } from '../../contexts/AuthContext';
+import { AuthMessages } from '../../constants/Messages';
+import { AuthError } from '../../services/authService';
+import { isValidEmail } from '../../utils/validation';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
-  const handleLogin = () => {
-    // TODO: Implementar lógica de login
-    console.log('Login:', { email, password });
-    router.replace('/(main)/(tabs)/client');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      const { title, message } = AuthMessages.validation.emptyFields;
+      Alert.alert(title, message);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      const { title, message } = AuthMessages.validation.invalidEmail;
+      Alert.alert(title, message);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await login({ identifier: email, password });
+      router.replace('/(main)/(tabs)/client');
+    } catch (error) {
+      let errorMessage = AuthMessages.login.unknownError;
+      
+      if (error instanceof AuthError) {
+        switch (error.type) {
+          case 'INVALID_CREDENTIALS':
+            errorMessage = AuthMessages.login.invalidCredentials;
+            break;
+          case 'NETWORK_ERROR':
+            errorMessage = AuthMessages.login.networkError;
+            break;
+          case 'SERVER_ERROR':
+            errorMessage = AuthMessages.login.serverError;
+            break;
+        }
+      }
+      
+      Alert.alert(errorMessage.title, errorMessage.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -44,7 +85,7 @@ export default function LoginScreen() {
             placeholder="Correo / Usuario"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
           />
         </Input>
@@ -78,11 +119,14 @@ export default function LoginScreen() {
             bg: Colors.primaryHover
           }}
           onPress={handleLogin}
+          isDisabled={isLoading}
         >
-          <ButtonText color={Colors.white}>Iniciar</ButtonText>
+          <ButtonText color={Colors.white}>
+            {isLoading ? 'Iniciando...' : 'Iniciar'}
+          </ButtonText>
         </Button>
 
-        <Button
+        {/* <Button
           size="lg"
           w="100%"
           h={52}
@@ -102,7 +146,7 @@ export default function LoginScreen() {
             />
             <ButtonText color={Colors.primary}>Iniciar con Google</ButtonText>
           </HStack>
-        </Button>
+        </Button> */}
 
         <Pressable onPress={() => router.push('/(auth)/register')} mt="$2">
           <Text color={Colors.gray400}>¿No tienes cuenta?{' '} <Text color={Colors.primary} textDecorationLine="underline" fontWeight="bold">Regístrate</Text></Text>
