@@ -19,21 +19,24 @@ import { useClients } from '../../contexts/ClientContext';
 
 export default function AddClientCreditScreen() {
   const { addClient } = useClients();
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [cedula, setCedula] = useState('');
-  const [errors, setErrors] = useState<{nombre?: string; apellido?: string}>({});
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [documentType, setDocumentType] = useState('CC');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const validateForm = () => {
-    const newErrors: {nombre?: string; apellido?: string} = {};
+    const newErrors: {[key: string]: string} = {};
     
-    if (!nombre.trim()) {
-      newErrors.nombre = 'El nombre es obligatorio';
-    }
-    
-    if (!apellido.trim()) {
-      newErrors.apellido = 'El apellido es obligatorio';
-    }
+    if (!firstName.trim()) newErrors.firstName = 'El nombre es obligatorio';
+    if (!lastName.trim()) newErrors.lastName = 'El apellido es obligatorio';
+    if (!documentNumber.trim()) newErrors.documentNumber = 'El número de documento es obligatorio';
+    if (!email.trim()) newErrors.email = 'El email es obligatorio';
+    if (!phone.trim()) newErrors.phone = 'El teléfono es obligatorio';
+    if (!password.trim()) newErrors.password = 'La contraseña es obligatoria';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -42,9 +45,13 @@ export default function AddClientCreditScreen() {
   const handleSave = () => {
     if (validateForm()) {
       addClient({
-        name: nombre,
-        lastName: apellido,
-        cedula: cedula || undefined
+        firstName,
+        lastName,
+        documentType,
+        documentNumber,
+        email,
+        phone,
+        password
       });
       router.back();
     }
@@ -78,17 +85,17 @@ export default function AddClientCreditScreen() {
               w="100%" 
               h={54} 
               borderRadius={4}
-              borderColor={errors.nombre ? Colors.error : "$borderLight200"}
+              borderColor={errors.firstName ? Colors.error : "$borderLight200"}
             >
               <InputField
                 placeholder="Ingresa el nombre"
-                value={nombre}
-                onChangeText={setNombre}
+                value={firstName}
+                onChangeText={setFirstName}
               />
             </Input>
-            {errors.nombre && (
+            {errors.firstName && (
               <Text size="xs" color={Colors.error}>
-                {errors.nombre}
+                {errors.firstName}
               </Text>
             )}
           </VStack>
@@ -102,24 +109,24 @@ export default function AddClientCreditScreen() {
               w="100%" 
               h={54} 
               borderRadius={4}
-              borderColor={errors.apellido ? Colors.error : "$borderLight200"}
+              borderColor={errors.lastName ? Colors.error : "$borderLight200"}
             >
               <InputField
                 placeholder="Ingresa el apellido"
-                value={apellido}
-                onChangeText={setApellido}
+                value={lastName}
+                onChangeText={setLastName}
               />
             </Input>
-            {errors.apellido && (
+            {errors.lastName && (
               <Text size="xs" color={Colors.error}>
-                {errors.apellido}
+                {errors.lastName}
               </Text>
             )}
           </VStack>
 
           <VStack space="sm">
             <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-              Cédula
+              Tipo de Documento *
             </Text>
             <Input 
               size="lg" 
@@ -128,12 +135,111 @@ export default function AddClientCreditScreen() {
               borderRadius={4}
             >
               <InputField
-                placeholder="Ingresa la cédula (opcional)"
-                value={cedula}
-                onChangeText={setCedula}
+                placeholder="CC"
+                value={documentType}
+                onChangeText={setDocumentType}
+              />
+            </Input>
+          </VStack>
+
+          <VStack space="sm">
+            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+              Número de Documento *
+            </Text>
+            <Input 
+              size="lg" 
+              w="100%" 
+              h={54} 
+              borderRadius={4}
+              borderColor={errors.documentNumber ? Colors.error : "$borderLight200"}
+            >
+              <InputField
+                placeholder="Ingresa el número de documento"
+                value={documentNumber}
+                onChangeText={setDocumentNumber}
                 keyboardType="numeric"
               />
             </Input>
+            {errors.documentNumber && (
+              <Text size="xs" color={Colors.error}>
+                {errors.documentNumber}
+              </Text>
+            )}
+          </VStack>
+
+          <VStack space="sm">
+            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+              Email *
+            </Text>
+            <Input 
+              size="lg" 
+              w="100%" 
+              h={54} 
+              borderRadius={4}
+              borderColor={errors.email ? Colors.error : "$borderLight200"}
+            >
+              <InputField
+                placeholder="Ingresa el email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+              />
+            </Input>
+            {errors.email && (
+              <Text size="xs" color={Colors.error}>
+                {errors.email}
+              </Text>
+            )}
+          </VStack>
+
+          <VStack space="sm">
+            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+              Teléfono *
+            </Text>
+            <Input 
+              size="lg" 
+              w="100%" 
+              h={54} 
+              borderRadius={4}
+              borderColor={errors.phone ? Colors.error : "$borderLight200"}
+            >
+              <InputField
+                placeholder="Ingresa el teléfono"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+              />
+            </Input>
+            {errors.phone && (
+              <Text size="xs" color={Colors.error}>
+                {errors.phone}
+              </Text>
+            )}
+          </VStack>
+
+          <VStack space="sm">
+            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+              Contraseña *
+            </Text>
+            <Input 
+              size="lg" 
+              w="100%" 
+              h={54} 
+              borderRadius={4}
+              borderColor={errors.password ? Colors.error : "$borderLight200"}
+            >
+              <InputField
+                placeholder="Ingresa la contraseña"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </Input>
+            {errors.password && (
+              <Text size="xs" color={Colors.error}>
+                {errors.password}
+              </Text>
+            )}
           </VStack>
 
           <Button 

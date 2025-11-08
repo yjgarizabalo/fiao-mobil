@@ -2,9 +2,13 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Client {
   id: string;
-  name: string;
+  firstName: string;
   lastName: string;
-  cedula?: string;
+  documentType: string;
+  documentNumber: string;
+  email: string;
+  phone: string;
+  password: string;
   status: 'al_dia' | 'debe';
   balance: number;
 }
@@ -27,8 +31,8 @@ export const useClients = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [clients, setClients] = useState<Client[]>([
-    { id: '1', name: 'Juan', lastName: 'Pérez', status: 'al_dia', balance: 0 },
-    { id: '2', name: 'María', lastName: 'García', status: 'debe', balance: 45000 },
+    { id: '1', firstName: 'Juan', lastName: 'Pérez', documentType: 'CC', documentNumber: '12345678', email: 'juan@example.com', phone: '3001234567', password: '123456', status: 'al_dia', balance: 0 },
+    { id: '2', firstName: 'María', lastName: 'García', documentType: 'CC', documentNumber: '87654321', email: 'maria@example.com', phone: '3007654321', password: '123456', status: 'debe', balance: 45000 },
   ]);
 
   const addClient = (clientData: Omit<Client, 'id' | 'status' | 'balance'>) => {

@@ -36,7 +36,7 @@ export default function ClientScreen() {
   };
 
   const filteredClients = clients.filter(client =>
-    normalizeText(`${client.name} ${client.lastName}`).includes(normalizeText(searchText))
+    normalizeText(`${client.firstName} ${client.lastName}`).includes(normalizeText(searchText))
   );
 
   const handleClientPress = (clientId: string) => {
@@ -112,11 +112,11 @@ export default function ClientScreen() {
                 <HStack alignItems="center" justifyContent="space-between">
                   <HStack alignItems="center" space="md" flex={1}>
                     <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
-                      <AvatarFallbackText color={Colors.gray600}>{client.name} {client.lastName}</AvatarFallbackText>
+                      <AvatarFallbackText color={Colors.gray600}>{client.firstName} {client.lastName}</AvatarFallbackText>
                     </Avatar>
                     <VStack flex={1}>
                       <Text size="md" fontWeight="$semibold" color={Colors.primary}>
-                        {client.name} {client.lastName}
+                        {client.firstName} {client.lastName}
                       </Text>
                       <HStack alignItems="center" space="xs">
                         <Box 

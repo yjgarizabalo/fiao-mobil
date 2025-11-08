@@ -89,7 +89,7 @@ export default function CreditClientScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.primary} />
           </Pressable>
           <Heading size="lg" color={Colors.primary} flex={1}>
-            {client.name} {client.lastName}
+            {client.firstName} {client.lastName}
           </Heading>
         </HStack>
 
@@ -187,7 +187,7 @@ export default function CreditClientScreen() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onSubmit={handlePaymentSubmit}
-        clientName={client.name}
+        clientName={client.firstName}
         currentDebt={currentBalance}
       />
       
@@ -195,7 +195,7 @@ export default function CreditClientScreen() {
         isOpen={isDebtModalOpen}
         onClose={() => setIsDebtModalOpen(false)}
         onSubmit={handleDebtSubmit}
-        clientName={client.name}
+        clientName={client.firstName}
       />
     </Box>
   );
