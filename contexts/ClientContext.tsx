@@ -1,22 +1,25 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, ReactNode, useContext, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../utils/api';
 
 export interface Client {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
+  //lastName: string;
   documentType: string;
   documentNumber: string;
-  email: string;
+  //email: string;
   phone: string;
-  password: string;
+  //password: string;
   status: 'al_dia' | 'debe';
   balance: number;
 }
 
 interface ClientContextType {
   clients: Client[];
-  addClient: (client: Omit<Client, 'id' | 'status' | 'balance'>) => void;
-  getClient: (id: string) => Client | undefined;
+  addClient: (businessId: string, client: Omit<Client, 'id' | 'status' | 'balance'>) => void;
+  getClient: (id: string) => Client | undefined | Promise<Client>;
+  loadClientsByBusiness: (businessId: string) => Promise<void>;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -30,27 +33,47 @@ export const useClients = () => {
 };
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
-  const [clients, setClients] = useState<Client[]>([
-    { id: '1', firstName: 'Juan', lastName: 'Pérez', documentType: 'CC', documentNumber: '12345678', email: 'juan@example.com', phone: '3001234567', password: '123456', status: 'al_dia', balance: 0 },
-    { id: '2', firstName: 'María', lastName: 'García', documentType: 'CC', documentNumber: '87654321', email: 'maria@example.com', phone: '3007654321', password: '123456', status: 'debe', balance: 45000 },
-  ]);
+   const [clients, setClients] = useState<Client[]>([]);
+  const { user } = useAuth();
 
-  const addClient = (clientData: Omit<Client, 'id' | 'status' | 'balance'>) => {
-    const newClient: Client = {
-      ...clientData,
-      id: Date.now().toString(),
-      status: 'al_dia',
-      balance: 0,
-    };
-    setClients(prev => [...prev, newClient]);
+
+const addClient = async (
+  businessId: string,
+  clientData: Omit<Client, 'id' | 'status' | 'balance'>
+) => {
+  try {
+    const response = await api.post(
+      `/business/${businessId}/debtors`,
+      clientData
+    );
+
+    setClients(prev => [...prev, response.data]);
+  } catch (error) {
+    console.error('Error creating client:', error);
+  }
+};
+
+
+  const getClient =  async (id: string) => {
+   const local = clients.find(c => c.id === id);
+  if (local) return local;
+
+  const res = await api.get(`/debtors/${id}`);
+  return res.data;
   };
 
-  const getClient = (id: string) => {
-    return clients.find(client => client.id === id);
-  };
+  const loadClientsByBusiness = async (businessId: string) => {
+  try {
+    const res = await api.get(`/business/${businessId}/debtors`);
+    setClients(res.data);
+  } catch (error) {
+    console.error('Error loading clients:', error);
+  }
+};
+
 
   return (
-    <ClientContext.Provider value={{ clients, addClient, getClient }}>
+    <ClientContext.Provider value={{ clients, addClient, getClient, loadClientsByBusiness }}>
       {children}
     </ClientContext.Provider>
   );

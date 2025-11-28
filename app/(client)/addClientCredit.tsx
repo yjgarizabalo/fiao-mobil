@@ -1,57 +1,57 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   Box,
-  VStack,
-  Heading,
-  Text,
-  Input,
-  InputField,
   Button,
   ButtonText,
+  Heading,
   HStack,
+  Input,
+  InputField,
   Pressable,
+  ScrollView,
+  Text,
+  VStack,
 } from '@gluestack-ui/themed';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/Header';
 import { Colors } from '../../constants/Colors';
 import { useClients } from '../../contexts/ClientContext';
 
 export default function AddClientCreditScreen() {
   const { addClient } = useClients();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [name, setName] = useState('');
+  //const [lastName, setLastName] = useState('');
   const [documentType, setDocumentType] = useState('CC');
   const [documentNumber, setDocumentNumber] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [note, setNote] = useState('');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const { businessId } = useLocalSearchParams();
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
     
-    if (!firstName.trim()) newErrors.firstName = 'El nombre es obligatorio';
-    if (!lastName.trim()) newErrors.lastName = 'El apellido es obligatorio';
+    if (!name.trim()) newErrors.Name = 'El nombre es obligatorio';
+   // if (!lastName.trim()) newErrors.lastName = 'El apellido es obligatorio';
     if (!documentNumber.trim()) newErrors.documentNumber = 'El número de documento es obligatorio';
-    if (!email.trim()) newErrors.email = 'El email es obligatorio';
     if (!phone.trim()) newErrors.phone = 'El teléfono es obligatorio';
-    if (!password.trim()) newErrors.password = 'La contraseña es obligatoria';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSave = () => {
+    if (!businessId) {
+    alert("No hay negocio seleccionado");
+    return;
+}
     if (validateForm()) {
-      addClient({
-        firstName,
-        lastName,
+      addClient(String(businessId),{
+        name,
         documentType,
         documentNumber,
-        email,
-        phone,
-        password
+        phone   
       });
       router.back();
     }
@@ -60,12 +60,13 @@ export default function AddClientCreditScreen() {
   const handleBack = () => {
     router.back();
   };
-
+console.log("BusinessId recibido desde addclient:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">
       <Header title="Agregar Cliente" />
-      
+      <ScrollView>
       <Box p="$4">
+        
         <HStack alignItems="center" space="md" mb="$4">
           <Pressable onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={Colors.primary} />
@@ -89,8 +90,8 @@ export default function AddClientCreditScreen() {
             >
               <InputField
                 placeholder="Ingresa el nombre"
-                value={firstName}
-                onChangeText={setFirstName}
+                value={name}
+                onChangeText={setName}
               />
             </Input>
             {errors.firstName && (
@@ -100,7 +101,7 @@ export default function AddClientCreditScreen() {
             )}
           </VStack>
 
-          <VStack space="sm">
+         {/*<VStack space="sm">
             <Text size="sm" fontWeight="$medium" color={Colors.primary}>
               Apellido *
             </Text>
@@ -122,7 +123,7 @@ export default function AddClientCreditScreen() {
                 {errors.lastName}
               </Text>
             )}
-          </VStack>
+          </VStack> */}
 
           <VStack space="sm">
             <Text size="sm" fontWeight="$medium" color={Colors.primary}>
@@ -169,31 +170,6 @@ export default function AddClientCreditScreen() {
 
           <VStack space="sm">
             <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-              Email *
-            </Text>
-            <Input 
-              size="lg" 
-              w="100%" 
-              h={54} 
-              borderRadius={4}
-              borderColor={errors.email ? Colors.error : "$borderLight200"}
-            >
-              <InputField
-                placeholder="Ingresa el email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-              />
-            </Input>
-            {errors.email && (
-              <Text size="xs" color={Colors.error}>
-                {errors.email}
-              </Text>
-            )}
-          </VStack>
-
-          <VStack space="sm">
-            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
               Teléfono *
             </Text>
             <Input 
@@ -229,9 +205,9 @@ export default function AddClientCreditScreen() {
               borderColor={errors.password ? Colors.error : "$borderLight200"}
             >
               <InputField
-                placeholder="Ingresa la contraseña"
-                value={password}
-                onChangeText={setPassword}
+                placeholder="Nota (opcional)"
+                value={note}
+                onChangeText={setNote}
                 secureTextEntry
               />
             </Input>
@@ -257,7 +233,9 @@ export default function AddClientCreditScreen() {
             <ButtonText color={Colors.white}>Guardar Cliente</ButtonText>
           </Button>
         </VStack>
+        
       </Box>
+      </ScrollView>
     </Box>
   );
 }

@@ -3,7 +3,6 @@ import {
   Button,
   ButtonText,
   Heading,
-  HStack,
   Image,
   Input,
   InputField,
@@ -15,8 +14,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useAuth } from '../../contexts/AuthContext';
 import { AuthMessages } from '../../constants/Messages';
+import { useAuth } from '../../contexts/AuthContext';
 import { AuthError } from '../../services/authService';
 import { isValidEmail } from '../../utils/validation';
 
@@ -42,7 +41,7 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       await login({ identifier: email, password });
-      router.replace('/(main)/(tabs)/client');
+      router.replace('/(main)/(tabs)/dashBoard');
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
       

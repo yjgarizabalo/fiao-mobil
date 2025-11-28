@@ -1,9 +1,9 @@
 const getLocalApiUrl = () => {
   if (process.env.EXPO_PUBLIC_ENVIRONMENT === 'local') {
     // Para desarrollo local, usar la IP que muestra Expo
-    return process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+    return process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.1.3:3000/api';
   }
-  return process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+  return process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.1.3:3000';
 };
 
 export const config = {

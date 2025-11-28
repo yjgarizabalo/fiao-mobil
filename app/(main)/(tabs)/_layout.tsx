@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { Colors } from '../../../constants/Colors';
 
 export default function TabLayout() {
@@ -10,12 +10,12 @@ export default function TabLayout() {
       tabBarInactiveTintColor: Colors.gray400
     }}>
       <Tabs.Screen 
-        name="client" 
+        name="dashBoard" 
         options={{ 
-          title: 'Clientes',
+          title: 'DashBoard',
           tabBarIcon: ({ focused }) => (
             <Ionicons 
-              name="people" 
+              name="home-outline" 
               size={24} 
               color={focused ? Colors.black : Colors.gray400} 
             />

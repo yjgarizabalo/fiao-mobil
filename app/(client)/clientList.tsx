@@ -15,18 +15,30 @@ import {
   Text,
   VStack
 } from '@gluestack-ui/themed';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import Header from '../../../components/Header';
-import { Colors } from '../../../constants/Colors';
-import { useClients } from '../../../contexts/ClientContext';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import Header from '../../components/Header';
+import { Colors } from '../../constants/Colors';
+import { useBusiness } from '../../contexts/BusinessContext';
+import { useClients } from '../../contexts/ClientContext';
+
 
 
 
 
 export default function ClientScreen() {
-  const { clients } = useClients();
+  const { businessId } = useLocalSearchParams();
+  const { businesses } = useBusiness();
+  const { clients, loadClientsByBusiness } = useClients();
   const [searchText, setSearchText] = useState('');
+  
+  const business = businesses.find(b => b.id === businessId);
+
+  useEffect(() => {
+  if (businessId) {
+    loadClientsByBusiness(String(businessId));
+  }
+}, [businessId]);
 
   const normalizeText = (text: string) => {
     return text
@@ -51,18 +63,29 @@ export default function ClientScreen() {
     return status === 'al_dia' ? 'Al día' : 'Debe';
   };
 
-  const handleAddClient = () => {
-    router.push('/(client)/addClientCredit');
-  };
-
+const handleAddClient = () => {
+  router.push({
+    pathname: '/(client)/addClientCredit',
+    params: { businessId: String(businessId) },
+  });
+};
+ console.log("BusinessId recibido:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">
+      <Pressable onPress={() => { router.back() }}>
+        <Ionicons
+          name="arrow-back"
+          size={24}
+          color={Colors.gray600}
+          style={{ marginTop: 50, marginLeft: 20 }}
+        />
+        </Pressable>
       <Header title="Clientes" />
       <Box bg="$white" p="$4" borderBottomWidth={1} borderBottomColor="$borderLight200">
         <VStack space="md">
           <VStack space="xs" alignItems="center">
             <Heading size="xl" color={Colors.primary}>
-              Mis Clientes
+              Mis Clientes - {business?.name ?? 'Negocio'}
             </Heading>
             <Text size="sm" color="$textLight500">
               {filteredClients.length} de {clients.length} clientes
