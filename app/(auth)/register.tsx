@@ -13,15 +13,24 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { AuthMessages } from '../../constants/Messages';
+import { useAuth } from '../../contexts/AuthContext';
+import { AuthError } from '../../services/authService';
 import { isValidEmail } from '../../utils/validation';
 
 export default function RegisterScreen() {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [documentType, setDocumentType] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { register } = useAuth();
+  const { login } = useAuth();
 
-  const handleRegister = () => {
-    if (!name || !email || !password) {
+  const handleRegister = async () => {
+    if (!firstName || !email || !password || !lastName || !documentType || !documentNumber || !phone) {
       Alert.alert(
         '¡Faltan algunos datos!',
         'Para crear tu cuenta necesitamos tu nombre completo, correo electrónico y una contraseña segura.'
@@ -40,12 +49,38 @@ export default function RegisterScreen() {
         'Contraseña muy corta',
         'Tu contraseña debe tener al menos 6 caracteres para mantener tu cuenta segura.'
       );
-      return;
     }
+       setIsLoading(true);
+      
+          try {
+            await register({ firstName, lastName, documentType, documentNumber, email, phone, password });
+            await login({ identifier: email, password });
+            router.replace('/(main)/(tabs)/dashBoard');
+            console.log('Register:', { name, email, password });
+          } catch (error) {
+            let errorMessage = AuthMessages.login.unknownError;
+            
+            if (error instanceof AuthError) {
+              switch (error.type) {
+                case 'INVALID_CREDENTIALS':
+                  errorMessage = AuthMessages.login.invalidCredentials;
+                  break;
+                case 'NETWORK_ERROR':
+                  errorMessage = AuthMessages.login.networkError;
+                  break;
+                case 'SERVER_ERROR':
+                  errorMessage = AuthMessages.login.serverError;
+                  break;
+              }
+            }
+            
+            Alert.alert(errorMessage.title, errorMessage.message);
+          } finally {
+            setIsLoading(false);
+          }
 
     // TODO: Implementar lógica de registro
-    console.log('Register:', { name, email, password });
-    router.replace('/(main)/(tabs)/client');
+    
   };
 
   return (
@@ -57,9 +92,41 @@ export default function RegisterScreen() {
         
         <Input size="lg" w="100%">
           <InputField
-            placeholder="Nombre completo"
-            value={name}
-            onChangeText={setName}
+            placeholder="Nombre"
+            value={firstName}
+            onChangeText={setFirstName}
+          />
+        </Input>
+
+           <Input size="lg" w="100%">
+          <InputField
+            placeholder="Apellido"
+            value={lastName}
+            onChangeText={setLastName}
+          />
+        </Input>
+
+           <Input size="lg" w="100%">
+          <InputField
+            placeholder="Tipo de Documento"
+            value={documentType}
+            onChangeText={setDocumentType}
+          />
+        </Input>
+
+           <Input size="lg" w="100%">
+          <InputField
+            placeholder="Número de Documento"
+            value={documentNumber}
+            onChangeText={setDocumentNumber}
+          />
+        </Input>
+
+           <Input size="lg" w="100%">
+          <InputField
+            placeholder="Telefono"
+            value={phone}
+            onChangeText={setPhone}
           />
         </Input>
         
@@ -89,6 +156,7 @@ export default function RegisterScreen() {
           h={52}
           bg="#1c1c1c"
           onPress={handleRegister}
+          isDisabled={isLoading}
           $pressed={{
             bg: "#2c2c2c"
           }}

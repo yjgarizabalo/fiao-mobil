@@ -1,22 +1,31 @@
 import {
-  Box,
-  VStack,
-  Heading,
-  Text,
-  Card,
   Avatar,
   AvatarFallbackText,
+  Box,
   Button,
   ButtonText,
+  Card,
+  Heading,
+  Text,
+  VStack,
 } from '@gluestack-ui/themed';
 import { router } from 'expo-router';
+import { Alert } from 'react-native';
 import Header from '../../../components/Header';
 import { Colors } from '../../../constants/Colors';
+import { useAuth } from '../../../contexts/AuthContext';
+
 
 export default function ProfileScreen() {
-  const handleLogout = () => {
-    // TODO: Implementar lógica de logout
-    router.replace('/(auth)/login');
+  const { logout } = useAuth();
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.log('Logout failed:', error);
+      Alert.alert('Error', 'No se pudo cerrar sesión');
+    }
   };
 
   return (
