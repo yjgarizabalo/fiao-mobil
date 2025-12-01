@@ -10,7 +10,17 @@ const api = axios.create({
 // Interceptor para agregar el token automáticamente
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("auth_token");
-  
+  const refreshToken = await AsyncStorage.getItem("refresh_token");
+  const user = await AsyncStorage.getItem("auth_user");
+  const userId = user ? JSON.parse(user).id : null;
+
+  console.log(" REQUEST →", {
+    url: config.url,
+    method: config.method,
+    token,
+    userId,
+    refreshToken
+  });
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -58,6 +68,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        console.log("actualizando token...");
         const refreshToken = await AsyncStorage.getItem("refresh_token");
         const user = await AsyncStorage.getItem("auth_user");
         console.log("refreshToken:", refreshToken);
@@ -74,12 +85,12 @@ api.interceptors.response.use(
           { userId: id },
           {
             headers: {
-              Authorization: `Bearer ${refreshToken}`
+             'x-refresh-token': refreshToken
             }
           }
         );
 
-        const newToken = response.data.token;
+        const newToken = response.data.accessToken;
         const newRefreshToken = response.data.refreshToken;
 
         // Guarda nuevos tokens
@@ -93,6 +104,7 @@ api.interceptors.response.use(
 
         // Reintenta la request original
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        console.log("nuevo refreshToken:", refreshToken);
         return api(originalRequest);
 
       } catch (err) {
