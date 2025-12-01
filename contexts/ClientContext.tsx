@@ -20,6 +20,7 @@ interface ClientContextType {
   addClient: (businessId: string, client: Omit<Client, 'id' | 'status' | 'balance'>) => void;
   getClient: (id: string) => Client | undefined | Promise<Client>;
   loadClientsByBusiness: (businessId: string) => Promise<void>;
+  clearClients: () => void;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -70,10 +71,10 @@ const addClient = async (
     console.error('Error loading clients:', error);
   }
 };
-
+const clearClients = () => setClients([]);
 
   return (
-    <ClientContext.Provider value={{ clients, addClient, getClient, loadClientsByBusiness }}>
+    <ClientContext.Provider value={{ clients, addClient, getClient, loadClientsByBusiness, clearClients }}>
       {children}
     </ClientContext.Provider>
   );

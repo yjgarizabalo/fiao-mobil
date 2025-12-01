@@ -29,16 +29,25 @@ import { useClients } from '../../contexts/ClientContext';
 export default function ClientScreen() {
   const { businessId } = useLocalSearchParams();
   const { businesses } = useBusiness();
-  const { clients, loadClientsByBusiness } = useClients();
+  const { clients, loadClientsByBusiness, clearClients } = useClients();
   const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(true);
+
   
   const business = businesses.find(b => b.id === businessId);
 
-  useEffect(() => {
-  if (businessId) {
-    loadClientsByBusiness(String(businessId));
-  }
+useEffect(() => {
+
+  if (!businessId) return;
+
+  setLoading(true);
+  clearClients(); 
+
+  loadClientsByBusiness(String(businessId))
+    .finally(() => setLoading(false));
+
 }, [businessId]);
+
 
   const normalizeText = (text: string) => {
     return text
@@ -69,6 +78,14 @@ const handleAddClient = () => {
     params: { businessId: String(businessId) },
   });
 };
+if (loading) {
+  return (
+    <Box flex={1} alignItems="center" justifyContent="center">
+      <Text>Cargando clientes...</Text>
+    </Box>
+  );
+}
+
  console.log("BusinessId recibido:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">

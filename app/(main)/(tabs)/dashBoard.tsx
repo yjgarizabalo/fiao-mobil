@@ -42,7 +42,7 @@ export default function BusinessScreen() {
   const handleBusinessPress = (businessId: string) => {
      router.push({
     pathname: '/(client)/clientList',
-    params: { businessId },
+    params: { businessId, key: businessId },
   });
    };
 
@@ -93,9 +93,10 @@ export default function BusinessScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false}flex={1} p="$4" contentContainerStyle={{ paddingBottom: 20 }}>
         <HStack space="md">
           {filteredBusinesses.map((business) => (
-          <Pressable onPress={() => { handleBusinessPress(business.id) }}>
+          <Pressable 
+          key={business.id}
+          onPress={() => { handleBusinessPress(business.id) }}>
             <Card
-              key={business.id}
               p="$4"
               bg="$white"
               borderRadius={12}
