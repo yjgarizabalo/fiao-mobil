@@ -52,7 +52,7 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      await login({ identifier: email, password });
+      await login({ identifier, password });
       router.replace('/(main)/(tabs)/dashBoard');
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;

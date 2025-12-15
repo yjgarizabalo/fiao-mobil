@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AuthResponse, AuthService, LoginCredentials } from '../services/authService';
+import { AuthResponse, AuthService, LoginCredentials, RegisterData } from '../services/authService';
 
 interface User {
   id: string;
@@ -14,7 +14,8 @@ interface AuthContextType {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
-  login: (authData: { user: User; accessToken: string; refreshToken?: string }) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: any) => {
+  const register = async (data: RegisterData) => {
   try {
     await AuthService.register(data);
   }catch (error) {
