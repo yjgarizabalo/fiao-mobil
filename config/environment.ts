@@ -17,3 +17,9 @@ export const getApiUrl = (endpoint: string) => {
   console.log('API URL:', url);
   return url;
 };
+
+export const getBaseApiUrl = (endpoint: string) => {
+  const url = `${config.apiBaseUrl}${endpoint}`;
+  console.log('Base API URL:', url);
+  return url;
+};

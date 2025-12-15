@@ -12,6 +12,8 @@ export interface AuthResponse {
     id: string;
     email: string;
     name: string;
+    firstName?: string;
+    lastName?: string;
   };
 }
 
@@ -64,6 +66,29 @@ export class AuthService {
         throw new AuthError('NETWORK_ERROR', 'No se pudo conectar al servidor');
       }
       throw new AuthError('NETWORK_ERROR', 'Error de conexión');
+    }
+  }
+
+  static async logout(userId: string, refreshToken: string): Promise<void> {
+    const url = getApiUrl('/logout');
+    console.log('Attempting logout to:', url);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId, refreshToken }),
+      });
+
+      if (!response.ok) {
+        console.log('Logout failed, but continuing with local logout');
+      }
+    } catch (error) {
+      console.log('Logout error:', error);
+      // Continue with local logout even if server request fails
     }
   }
 }

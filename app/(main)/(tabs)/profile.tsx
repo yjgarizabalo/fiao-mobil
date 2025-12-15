@@ -1,23 +1,44 @@
 import {
-  Box,
-  VStack,
-  Heading,
-  Text,
-  Card,
   Avatar,
   AvatarFallbackText,
+  Box,
   Button,
   ButtonText,
+  Card,
+  Heading,
+  Text,
+  VStack,
 } from '@gluestack-ui/themed';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import Header from '../../../components/Header';
 import { Colors } from '../../../constants/Colors';
+import { useAuth } from '../../../contexts/AuthContext';
+import { AuthService } from '../../../services/authService';
 
 export default function ProfileScreen() {
-  const handleLogout = () => {
-    // TODO: Implementar lógica de logout
-    router.replace('/(auth)/login');
+  const { user, refreshToken, logout } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      if (user?.id && refreshToken) {
+        await AuthService.logout(user.id, refreshToken);
+      }
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force logout even if server call fails
+      await logout();
+      router.replace('/(auth)/login');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  console.log('User:', user);
 
   return (
     <Box flex={1} bg="$backgroundLight50">
@@ -25,7 +46,7 @@ export default function ProfileScreen() {
       <VStack space="xl" flex={1}>
         <VStack space="sm" alignItems="center" mt="$16">
           <Avatar size="xl" bg="$primary600">
-            <AvatarFallbackText>Usuario</AvatarFallbackText>
+            <AvatarFallbackText>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'Usuario'}</AvatarFallbackText>
           </Avatar>
           <Heading size="2xl" textAlign="center">
             Perfil
@@ -44,12 +65,12 @@ export default function ProfileScreen() {
               
               <VStack space="sm">
                 <Text size="sm" color="$textLight500">Nombre:</Text>
-                <Text size="md">Usuario Ejemplo</Text>
+                <Text size="md">{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'No disponible'}</Text>
               </VStack>
               
               <VStack space="sm">
                 <Text size="sm" color="$textLight500">Email:</Text>
-                <Text size="md">usuario@ejemplo.com</Text>
+                <Text size="md">{user?.email || 'No disponible'}</Text>
               </VStack>
             </VStack>
           </Card>
@@ -63,8 +84,9 @@ export default function ProfileScreen() {
             borderRadius={14}
             bg={Colors.error}
             onPress={handleLogout}
+            isDisabled={loading}
           >
-            <ButtonText color={Colors.white}>Cerrar Sesión</ButtonText>
+            <ButtonText color={Colors.white}>{loading ? 'Cerrando sesión...' : 'Cerrar Sesión'}</ButtonText>
           </Button>
         </Box>
       </VStack>

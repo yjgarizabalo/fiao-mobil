@@ -1,11 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AuthResponse, AuthService, LoginCredentials } from '../services/authService';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+}
 
 interface AuthContextType {
-  user: any;
-  token: string | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  user: User | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  login: (authData: { user: User; accessToken: string; refreshToken?: string }) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -13,8 +21,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,12 +32,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadStoredAuth = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('auth_token');
-      const storedUser = await AsyncStorage.getItem('auth_user');
-      
-      if (storedToken && storedUser) {
-        setToken(storedToken);
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedAccessToken = await AsyncStorage.getItem('accessToken');
+      const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+
+      if (storedUser && storedAccessToken) {
         setUser(JSON.parse(storedUser));
+        setAccessToken(storedAccessToken);
+        setRefreshToken(storedRefreshToken);
       }
     } catch (error) {
       console.error('Error loading stored auth:', error);
@@ -37,33 +48,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (authData: { user: User; accessToken: string; refreshToken?: string }) => {
     try {
-      const response: AuthResponse = await AuthService.login(credentials);
-      
-      setToken(response.accessToken);
-      // setUser(response.user);
-      
-      await AsyncStorage.setItem('auth_token', response.accessToken);
-      await AsyncStorage.setItem('auth_user', JSON.stringify(response.user));
-      
-      if (response.refreshToken) {
-        await AsyncStorage.setItem('refresh_token', response.refreshToken);
+      setUser(authData.user);
+      setAccessToken(authData.accessToken);
+      setRefreshToken(authData.refreshToken || null);
+
+      await AsyncStorage.setItem('user', JSON.stringify(authData.user));
+      await AsyncStorage.setItem('accessToken', authData.accessToken);
+      if (authData.refreshToken) {
+        await AsyncStorage.setItem('refreshToken', authData.refreshToken);
       }
     } catch (error) {
-      throw error;
+      console.error('Error storing auth data:', error);
     }
   };
 
   const logout = async () => {
-    setToken(null);
-    setUser(null);
-    await AsyncStorage.removeItem('auth_token');
-    await AsyncStorage.removeItem('auth_user');
+    try {
+      setUser(null);
+      setAccessToken(null);
+      setRefreshToken(null);
+
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('accessToken');
+      await AsyncStorage.removeItem('refreshToken');
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{
+      user,
+      accessToken,
+      refreshToken,
+      login,
+      logout,
+      isLoading
+    }}>
       {children}
     </AuthContext.Provider>
   );

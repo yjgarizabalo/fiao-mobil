@@ -7,6 +7,8 @@ import {
   Image,
   Input,
   InputField,
+  InputSlot,
+  InputIcon,
   Pressable,
   Text,
   VStack
@@ -14,34 +16,45 @@ import {
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { AuthMessages } from '../../constants/Messages';
-import { AuthError } from '../../services/authService';
-import { isValidEmail } from '../../utils/validation';
+import { AuthService, AuthError } from '../../services/authService';
+import { isValidIdentifier } from '../../utils/validation';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const { login } = useAuth();
 
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!identifier.trim()) newErrors.identifier = 'Este campo es obligatorio';
+    if (!password.trim()) newErrors.password = 'Este campo es obligatorio';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      const { title, message } = AuthMessages.validation.emptyFields;
-      Alert.alert(title, message);
+    if (!validateForm()) {
       return;
     }
 
-    if (!isValidEmail(email)) {
-      const { title, message } = AuthMessages.validation.invalidEmail;
-      Alert.alert(title, message);
+    if (!isValidIdentifier(identifier)) {
+      Alert.alert('Datos inválidos', 'Ingresa un correo electrónico válido o un número de identificación.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await login({ identifier: email, password });
+      const authResponse = await AuthService.login({ identifier, password });
+      await login(authResponse);
       router.replace('/(main)/(tabs)/client');
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
@@ -80,24 +93,58 @@ export default function LoginScreen() {
           Iniciar Sesión
         </Heading>
 
-        <Input size="lg" w="100%" h={54} borderRadius={4}>
-          <InputField
-            placeholder="Correo / Usuario"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="default"
-            autoCapitalize="none"
-          />
-        </Input>
+        <VStack space="xs" w="100%">
+          <Input 
+            size="lg" 
+            w="100%" 
+            h={54} 
+            borderRadius={4}
+            borderColor={errors.identifier ? Colors.error : "$borderLight200"}
+          >
+            <InputField
+              placeholder="Correo o Número de Identificación *"
+              value={identifier}
+              onChangeText={setIdentifier}
+              keyboardType="default"
+              autoCapitalize="none"
+            />
+          </Input>
+          {errors.identifier && (
+            <Text size="xs" color={Colors.error}>
+              {errors.identifier}
+            </Text>
+          )}
+        </VStack>
 
-        <Input size="lg" w="100%" h={54}>
-          <InputField
-            placeholder="Ingresa tu contraseña"
-            value={password}
-            onChangeText={setPassword}
-            type="password"
-          />
-        </Input>
+        <VStack space="xs" w="100%">
+          <Input 
+            size="lg" 
+            w="100%" 
+            h={54}
+            borderColor={errors.password ? Colors.error : "$borderLight200"}
+          >
+            <InputField
+              placeholder="Ingresa tu contraseña *"
+              value={password}
+              onChangeText={setPassword}
+              type={showPassword ? "text" : "password"}
+            />
+            <InputSlot pr="$3" onPress={() => setShowPassword(!showPassword)}>
+              <InputIcon as={() => (
+                <Ionicons 
+                  name={showPassword ? "eye-off" : "eye"} 
+                  size={20} 
+                  color={Colors.gray400} 
+                />
+              )} />
+            </InputSlot>
+          </Input>
+          {errors.password && (
+            <Text size="xs" color={Colors.error}>
+              {errors.password}
+            </Text>
+          )}
+        </VStack>
 
         <Pressable onPress={() => router.push('/(auth)/register')} mt="$2">
           <Text color={Colors.gray400}>
