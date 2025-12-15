@@ -1,20 +1,20 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   Box,
-  Text,
-  VStack,
-  HStack,
-  Heading,
   Button,
   ButtonText,
   Card,
-  ScrollView,
+  HStack,
+  Heading,
   Pressable,
+  ScrollView,
+  Text,
+  VStack,
 } from '@gluestack-ui/themed';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import Header from '../../components/Header';
+import { useEffect, useState } from 'react';
 import AddDebtModal from '../../components/AddDebtModal';
+import Header from '../../components/Header';
 import RegisterPaymentModal from '../../components/RegisterPaymentModal';
 import { Colors } from '../../constants/Colors';
 import { useClients } from '../../contexts/ClientContext';
@@ -33,19 +33,54 @@ const mockTransactions: Transaction[] = [];
 
 export default function CreditClientScreen() {
   const { id } = useLocalSearchParams();
-  const { getClient } = useClients();
+  const { getClient, loadClientsByBusiness, clients } = useClients();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
-  
-  const client = getClient(id as string);
-  
-  if (!client) {
-    return (
-      <Box flex={1} bg="$backgroundLight50" justifyContent="center" alignItems="center">
-        <Text>Cliente no encontrado</Text>
-      </Box>
-    );
-  }
+  const [client, setClient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+  const load = async () => {
+    if (!id) return;
+
+    const localClient = getClient(id as string);
+
+    if (localClient) {
+      setClient(localClient);
+      setLoading(false);
+      return;
+    }
+
+    // Cliente no estaba en memoria → recargar
+    if (clients.length === 0) {
+      // Intenta reconstruir desde businessId en session si hay
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+  };
+
+  load();
+}, [id, clients]);
+
+
+if (loading) {
+  return (
+    <Box flex={1} justifyContent="center" alignItems="center">
+      <Text>Cargando cliente...</Text>
+    </Box>
+  );
+}
+
+if (!client) {
+  return (
+    <Box flex={1} justifyContent="center" alignItems="center">
+      <Text>Cliente no encontrado</Text>
+    </Box>
+  );
+}
+
   
   const currentBalance = client.balance;
 

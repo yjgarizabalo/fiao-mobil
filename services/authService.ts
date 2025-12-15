@@ -1,7 +1,17 @@
-import { getApiUrl } from '../config/environment';
+import { config as baseURL, getApiUrl } from '../config/environment';
 
 export interface LoginCredentials {
   identifier: string;
+  password: string;
+}
+
+export interface RegisterData {
+  firstName: string;
+  lastName: string;
+  documentType: string;
+  documentNumber: string;
+  email: string;
+  phone: string;
   password: string;
 }
 
@@ -69,26 +79,101 @@ export class AuthService {
     }
   }
 
-  static async logout(userId: string, refreshToken: string): Promise<void> {
-    const url = getApiUrl('/logout');
-    console.log('Attempting logout to:', url);
-    
-    try {
+  static async register(data: RegisterData): Promise<AuthResponse> {
+
+    const url = baseURL.apiBaseUrl + '/users';
+    console.log('Attempting registration to:');
+        try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId, refreshToken }),
+        body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        console.log('Logout failed, but continuing with local logout');
+      console.log('Response status:', response.status);
+      
+      const responseText = await response.text();
+      console.log('Response body:', responseText);
+
+      if (response.status === 401) {
+        throw new AuthError('INVALID_CREDENTIALS', 'Credenciales incorrectas');
       }
+
+      if (response.status >= 500) {
+        throw new AuthError('SERVER_ERROR', 'Error del servidor');
+      }
+
+      if (!response.ok) {
+        throw new AuthError('UNKNOWN_ERROR', `Error ${response.status}`);
+      }
+
+      return JSON.parse(responseText);
     } catch (error) {
-      console.log('Logout error:', error);
-      // Continue with local logout even if server request fails
+      console.log('Register error:', error);
+      if (error instanceof AuthError) {
+        throw error;
+      }
+      if (error instanceof TypeError && error.message.includes('Network request failed')) {
+        throw new AuthError('NETWORK_ERROR', 'No se pudo conectar al servidor');
+      }
+      throw new AuthError('NETWORK_ERROR', 'Error de conexión');
     }
   }
+
+static async logout(userId: string, refreshToken: string): Promise<any> {
+  const url = getApiUrl('/logout');
+  console.log('Attempting logout to:', url);
+
+  if (!refreshToken) {
+    throw new Error('No refresh token provided');
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-refresh-token': refreshToken,
+      },
+      body: JSON.stringify({
+        userId,
+        allDevices: false
+      }),
+    });
+
+    const responseText = await response.text();
+    console.log('Response status:', response.status);
+    console.log('Response body:', responseText);
+
+    if (response.status === 401) {
+      throw new AuthError('INVALID_CREDENTIALS', 'Refresh token inválido');
+    }
+
+    if (response.status >= 500) {
+      throw new AuthError('SERVER_ERROR', 'Error del servidor');
+    }
+
+    if (!response.ok) {
+      throw new AuthError('UNKNOWN_ERROR', `Error ${response.status}`);
+    }
+
+    return JSON.parse(responseText || '{}');
+
+  } catch (error) {
+    console.log('Logout error:', error);
+
+    if (error instanceof AuthError) throw error;
+
+    if (error instanceof TypeError && error.message.includes('Network request failed')) {
+      throw new AuthError('NETWORK_ERROR', 'No se pudo conectar al servidor');
+    }
+
+    throw new AuthError('NETWORK_ERROR', 'Error de conexión');
+  }
+}
+
 }

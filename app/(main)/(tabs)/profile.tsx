@@ -11,29 +11,25 @@ import {
 } from '@gluestack-ui/themed';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Alert } from 'react-native';
 import Header from '../../../components/Header';
 import { Colors } from '../../../constants/Colors';
 import { useAuth } from '../../../contexts/AuthContext';
-import { AuthService } from '../../../services/authService';
+
 
 export default function ProfileScreen() {
-  const { user, refreshToken, logout } = useAuth();
   const [loading, setLoading] = useState(false);
-
+  const { logout, user } = useAuth();
   const handleLogout = async () => {
-    setLoading(true);
     try {
-      if (user?.id && refreshToken) {
-        await AuthService.logout(user.id, refreshToken);
-      }
+      setLoading(true);
       await logout();
       router.replace('/(auth)/login');
     } catch (error) {
-      console.error('Logout error:', error);
-      // Force logout even if server call fails
-      await logout();
-      router.replace('/(auth)/login');
-    } finally {
+      console.log('Logout failed:', error);
+      Alert.alert('Error', 'No se pudo cerrar sesión');
+    }
+    finally {
       setLoading(false);
     }
   };

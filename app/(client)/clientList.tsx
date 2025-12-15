@@ -15,18 +15,39 @@ import {
   Text,
   VStack
 } from '@gluestack-ui/themed';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import Header from '../../../components/Header';
-import { Colors } from '../../../constants/Colors';
-import { useClients } from '../../../contexts/ClientContext';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import Header from '../../components/Header';
+import { Colors } from '../../constants/Colors';
+import { useBusiness } from '../../contexts/BusinessContext';
+import { useClients } from '../../contexts/ClientContext';
+
 
 
 
 
 export default function ClientScreen() {
-  const { clients } = useClients();
+  const { businessId } = useLocalSearchParams();
+  const { businesses } = useBusiness();
+  const { clients, loadClientsByBusiness, clearClients } = useClients();
   const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  
+  const business = businesses.find(b => b.id === businessId);
+
+useEffect(() => {
+
+  if (!businessId) return;
+
+  setLoading(true);
+  clearClients(); 
+
+  loadClientsByBusiness(String(businessId))
+    .finally(() => setLoading(false));
+
+}, [businessId]);
+
 
   const normalizeText = (text: string) => {
     return text
@@ -36,7 +57,7 @@ export default function ClientScreen() {
   };
 
   const filteredClients = clients.filter(client =>
-    normalizeText(`${client.firstName} ${client.lastName}`).includes(normalizeText(searchText))
+    normalizeText(`${client.name}`).includes(normalizeText(searchText))
   );
 
   const handleClientPress = (clientId: string) => {
@@ -51,18 +72,37 @@ export default function ClientScreen() {
     return status === 'al_dia' ? 'Al día' : 'Debe';
   };
 
-  const handleAddClient = () => {
-    router.push('/(client)/addClientCredit');
-  };
+const handleAddClient = () => {
+  router.push({
+    pathname: '/(client)/addClientCredit',
+    params: { businessId: String(businessId) },
+  });
+};
+if (loading) {
+  return (
+    <Box flex={1} alignItems="center" justifyContent="center">
+      <Text>Cargando clientes...</Text>
+    </Box>
+  );
+}
 
+ console.log("BusinessId recibido:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">
+      <Pressable onPress={() => { router.back() }}>
+        <Ionicons
+          name="arrow-back"
+          size={24}
+          color={Colors.gray600}
+          style={{ marginTop: 50, marginLeft: 20 }}
+        />
+        </Pressable>
       <Header title="Clientes" />
       <Box bg="$white" p="$4" borderBottomWidth={1} borderBottomColor="$borderLight200">
         <VStack space="md">
           <VStack space="xs" alignItems="center">
             <Heading size="xl" color={Colors.primary}>
-              Mis Clientes
+              Mis Clientes - {business?.name ?? 'Negocio'}
             </Heading>
             <Text size="sm" color="$textLight500">
               {filteredClients.length} de {clients.length} clientes
@@ -112,11 +152,11 @@ export default function ClientScreen() {
                 <HStack alignItems="center" justifyContent="space-between">
                   <HStack alignItems="center" space="md" flex={1}>
                     <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
-                      <AvatarFallbackText color={Colors.gray600}>{client.firstName} {client.lastName}</AvatarFallbackText>
+                      <AvatarFallbackText color={Colors.gray600}>{client.name}</AvatarFallbackText>
                     </Avatar>
                     <VStack flex={1}>
                       <Text size="md" fontWeight="$semibold" color={Colors.primary}>
-                        {client.firstName} {client.lastName}
+                        {client.name} 
                       </Text>
                       <HStack alignItems="center" space="xs">
                         <Box 

@@ -1,14 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   Box,
   Button,
   ButtonText,
   Heading,
-  HStack,
   Image,
   Input,
   InputField,
-  InputSlot,
   InputIcon,
+  InputSlot,
   Pressable,
   Text,
   VStack
@@ -16,11 +16,10 @@ import {
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { useAuth } from '../../contexts/AuthContext';
 import { AuthMessages } from '../../constants/Messages';
-import { AuthService, AuthError } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { AuthError } from '../../services/authService';
 import { isValidIdentifier } from '../../utils/validation';
 
 export default function LoginScreen() {
@@ -53,9 +52,8 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const authResponse = await AuthService.login({ identifier, password });
-      await login(authResponse);
-      router.replace('/(main)/(tabs)/client');
+      await login({ identifier: email, password });
+      router.replace('/(main)/(tabs)/dashBoard');
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
       

@@ -3,20 +3,21 @@ import {
   Button,
   ButtonText,
   Heading,
+  HStack,
   Input,
   InputField,
   Pressable,
   Text,
   VStack,
-  HStack,
 } from '@gluestack-ui/themed';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
-import { AuthMessages } from '../../constants/Messages';
 import { Colors } from '../../constants/Colors';
+import { AuthMessages } from '../../constants/Messages';
+import { useAuth } from '../../contexts/AuthContext';
+import { AuthError } from '../../services/authService';
 import { isValidEmail } from '../../utils/validation';
-import { RegisterService, RegisterError } from '../../services/registerUsers';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -28,7 +29,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-
+  const { register } = useAuth();
+  const { login } = useAuth();
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
     
@@ -59,49 +61,38 @@ export default function RegisterScreen() {
         'Contraseña muy corta',
         'Tu contraseña debe tener al menos 6 caracteres para mantener tu cuenta segura.'
       );
-      return;
     }
+       setLoading(true);
+      
+          try {
+            await register({ firstName, lastName, documentType, documentNumber, email, phone, password });
+            await login({ identifier: email, password });
+            router.replace('/(main)/(tabs)/dashBoard');
+            console.log('Register:', { name, email, password });
+          } catch (error) {
+            let errorMessage = AuthMessages.login.unknownError;
+            
+            if (error instanceof AuthError) {
+              switch (error.type) {
+                case 'INVALID_CREDENTIALS':
+                  errorMessage = AuthMessages.login.invalidCredentials;
+                  break;
+                case 'NETWORK_ERROR':
+                  errorMessage = AuthMessages.login.networkError;
+                  break;
+                case 'SERVER_ERROR':
+                  errorMessage = AuthMessages.login.serverError;
+                  break;
+              }
+            }
+            
+            Alert.alert(errorMessage.title, errorMessage.message);
+          } finally {
+            setLoading(false);
+          }
 
-    setLoading(true);
-    try {
-      await RegisterService.registerUser({
-        firstName,
-        lastName,
-        documentType,
-        documentNumber,
-        email,
-        phone,
-        password
-      });
-      
-      // Clear all fields
-      setFirstName('');
-      setLastName('');
-      setDocumentType('CC');
-      setDocumentNumber('');
-      setEmail('');
-      setPhone('');
-      setPassword('');
-      
-      Alert.alert(
-        '¡Cuenta creada!',
-        'Redirigiendo al login...',
-        [{ text: 'OK' }]
-      );
-      
-      // Auto redirect to login after 1 second
-      setTimeout(() => {
-        router.push('/(auth)/login');
-      }, 1000);
-    } catch (error) {
-      if (error instanceof RegisterError) {
-        Alert.alert('Error', error.message);
-      } else {
-        Alert.alert('Error', 'No se pudo crear la cuenta');
-      }
-    } finally {
-      setLoading(false);
-    }
+    // TODO: Implementar lógica de registro
+    
   };
 
   return (

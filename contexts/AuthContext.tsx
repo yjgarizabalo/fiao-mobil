@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AuthResponse, AuthService, LoginCredentials } from '../services/authService';
 
 interface User {
   id: string;
@@ -48,35 +49,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (authData: { user: User; accessToken: string; refreshToken?: string }) => {
-    try {
-      setUser(authData.user);
-      setAccessToken(authData.accessToken);
-      setRefreshToken(authData.refreshToken || null);
-
-      await AsyncStorage.setItem('user', JSON.stringify(authData.user));
-      await AsyncStorage.setItem('accessToken', authData.accessToken);
-      if (authData.refreshToken) {
-        await AsyncStorage.setItem('refreshToken', authData.refreshToken);
-      }
-    } catch (error) {
-      console.error('Error storing auth data:', error);
-    }
+  const register = async (data: any) => {
+  try {
+    await AuthService.register(data);
+  }catch (error) {
+    throw error;
+  }
   };
 
-  const logout = async () => {
-    try {
-      setUser(null);
-      setAccessToken(null);
-      setRefreshToken(null);
+const login = async (credentials: LoginCredentials) => {
+  try {
+    const response: AuthResponse = await AuthService.login(credentials);
 
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('accessToken');
-      await AsyncStorage.removeItem('refreshToken');
-    } catch (error) {
-      console.error('Error clearing auth data:', error);
+    setAccessToken(response.accessToken);
+    setUser(response.user);
+
+    await AsyncStorage.setItem('auth_token', response.accessToken);
+    await AsyncStorage.setItem('auth_user', JSON.stringify(response.user));
+
+    if (response.refreshToken) {
+      setRefreshToken(response.refreshToken);
+      await AsyncStorage.setItem('refresh_token', response.refreshToken);
     }
-  };
+
+  } catch (error) {
+    throw error;
+  }
+};
+
+
+const logout = async () => {
+  try {
+    //Intenta cerrar sesión en backend si tenemos tokens
+    if (user && refreshToken) {
+      await AuthService.logout(user.id, refreshToken).catch(() => {
+        console.warn('No se pudo cerrar sesión en servidor, cerrando localmente...');
+      });
+    }
+
+  } finally {
+    //cerrar sesión local (aunque falle backend)
+    await AsyncStorage.multiRemove([
+      'auth_token',
+      'refresh_token',
+      'auth_user',
+    ]);
+
+    setUser(null);
+    setAccessToken(null);
+    setRefreshToken(null);
+  }
+};
+
+
 
   return (
     <AuthContext.Provider value={{
@@ -84,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       accessToken,
       refreshToken,
       login,
+      register,
       logout,
       isLoading
     }}>
