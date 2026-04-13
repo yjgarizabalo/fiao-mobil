@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import {
   Box,
   Button,
@@ -10,20 +10,18 @@ import {
   ScrollView,
   Text,
   VStack,
-} from '@gluestack-ui/themed';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import AddDebtModal from '../../components/AddDebtModal';
-import Header from '../../components/Header';
-import RegisterPaymentModal from '../../components/RegisterPaymentModal';
-import { Colors } from '../../constants/Colors';
-import { useClients } from '../../contexts/ClientContext';
-
-
+} from "@gluestack-ui/themed";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import AddDebtModal from "../../components/AddDebtModal";
+import Header from "../../components/Header";
+import RegisterPaymentModal from "../../components/RegisterPaymentModal";
+import { Colors } from "../../constants/Colors";
+import { useClients } from "../../contexts/ClientContext";
 
 interface Transaction {
   id: string;
-  type: 'pago' | 'deuda';
+  type: "pago" | "deuda";
   amount: number;
   date: string;
   description: string;
@@ -40,48 +38,46 @@ export default function CreditClientScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  const load = async () => {
-    if (!id) return;
+    const load = async () => {
+      if (!id) return;
 
-    const localClient = getClient(id as string);
+      const localClient = getClient(id as string);
 
-    if (localClient) {
-      setClient(localClient);
+      if (localClient) {
+        setClient(localClient);
+        setLoading(false);
+        return;
+      }
+
+      // Cliente no estaba en memoria → recargar
+      if (clients.length === 0) {
+        // Intenta reconstruir desde businessId en session si hay
+        setLoading(false);
+        return;
+      }
+
       setLoading(false);
-      return;
-    }
+    };
 
-    // Cliente no estaba en memoria → recargar
-    if (clients.length === 0) {
-      // Intenta reconstruir desde businessId en session si hay
-      setLoading(false);
-      return;
-    }
+    load();
+  }, [id, clients]);
 
-    setLoading(false);
-  };
+  if (loading) {
+    return (
+      <Box flex={1} justifyContent="center" alignItems="center">
+        <Text>Cargando cliente...</Text>
+      </Box>
+    );
+  }
 
-  load();
-}, [id, clients]);
+  if (!client) {
+    return (
+      <Box flex={1} justifyContent="center" alignItems="center">
+        <Text>Cliente no encontrado</Text>
+      </Box>
+    );
+  }
 
-
-if (loading) {
-  return (
-    <Box flex={1} justifyContent="center" alignItems="center">
-      <Text>Cargando cliente...</Text>
-    </Box>
-  );
-}
-
-if (!client) {
-  return (
-    <Box flex={1} justifyContent="center" alignItems="center">
-      <Text>Cliente no encontrado</Text>
-    </Box>
-  );
-}
-
-  
   const currentBalance = client.balance;
 
   const handleBack = () => {
@@ -96,13 +92,16 @@ if (!client) {
     setIsDebtModalOpen(true);
   };
 
-  const handlePaymentSubmit = (data: { amount: number; description: string }) => {
-    console.log('Pago registrado:', data);
+  const handlePaymentSubmit = (data: {
+    amount: number;
+    description: string;
+  }) => {
+    console.log("Pago registrado:", data);
     // Aquí implementarías la lógica para guardar el pago
   };
 
   const handleDebtSubmit = (data: { amount: number; description: string }) => {
-    console.log('Deuda agregada:', data);
+    console.log("Deuda agregada:", data);
     // Aquí implementarías la lógica para guardar la deuda
   };
 
@@ -111,13 +110,13 @@ if (!client) {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES');
+    return new Date(dateString).toLocaleDateString("es-ES");
   };
 
   return (
     <Box flex={1} bg="$backgroundLight50">
       <Header title="Detalle Cliente" />
-      
+
       <Box p="$4">
         <HStack alignItems="center" space="md" mb="$4">
           <Pressable onPress={handleBack}>
@@ -128,20 +127,32 @@ if (!client) {
           </Heading>
         </HStack>
 
-        <Card p="$4" bg="$white" borderRadius={12} borderWidth={1} borderColor="$borderLight200" mb="$4">
+        <Card
+          p="$4"
+          bg="$white"
+          borderRadius={12}
+          borderWidth={1}
+          borderColor="$borderLight200"
+          mb="$4"
+        >
           <VStack space="sm" alignItems="center">
-            <Text size="sm" color="$textLight500">Saldo Actual</Text>
-            <Heading size="2xl" color={currentBalance > 0 ? Colors.error : Colors.success}>
+            <Text size="sm" color="$textLight500">
+              Saldo Actual
+            </Text>
+            <Heading
+              size="2xl"
+              color={currentBalance > 0 ? Colors.error : Colors.success}
+            >
               {formatCurrency(currentBalance)}
             </Heading>
             <Text size="xs" color="$textLight400">
-              {currentBalance > 0 ? 'Debe' : 'Al día'}
+              {currentBalance > 0 ? "Debe" : "Al día"}
             </Text>
           </VStack>
         </Card>
 
         <HStack space="md" mb="$4">
-          <Button 
+          <Button
             flex={1}
             size="md"
             h={48}
@@ -149,10 +160,12 @@ if (!client) {
             bg={Colors.success}
             onPress={handleRegisterPayment}
           >
-            <ButtonText color={Colors.white} size="sm">Registrar Pago</ButtonText>
+            <ButtonText color={Colors.white} size="sm">
+              Registrar Pago
+            </ButtonText>
           </Button>
-          
-          <Button 
+
+          <Button
             flex={1}
             size="md"
             h={48}
@@ -160,29 +173,43 @@ if (!client) {
             bg={Colors.error}
             onPress={handleAddDebt}
           >
-            <ButtonText color={Colors.white} size="sm">Agregar Deuda</ButtonText>
+            <ButtonText color={Colors.white} size="sm">
+              Agregar Deuda
+            </ButtonText>
           </Button>
         </HStack>
 
         <VStack space="sm" mb="$2">
-          <Heading size="md" color={Colors.primary}>Extracto de Movimientos</Heading>
+          <Heading size="md" color={Colors.primary}>
+            Extracto de Movimientos
+          </Heading>
         </VStack>
       </Box>
 
-      <ScrollView flex={1} px="$4" contentContainerStyle={{ paddingBottom: 20 }}>
+      <ScrollView
+        flex={1}
+        px="$4"
+        contentContainerStyle={{ paddingBottom: 20 }}
+      >
         <VStack space="sm">
           {mockTransactions.length === 0 ? (
-            <Card p="$4" bg="$white" borderRadius={8} borderWidth={1} borderColor="$borderLight200">
+            <Card
+              p="$4"
+              bg="$white"
+              borderRadius={8}
+              borderWidth={1}
+              borderColor="$borderLight200"
+            >
               <Text size="sm" color="$textLight500" textAlign="center">
                 No hay movimientos registrados
               </Text>
             </Card>
           ) : (
             mockTransactions.map((transaction) => (
-              <Card 
-                key={transaction.id} 
-                p="$3" 
-                bg="$white" 
+              <Card
+                key={transaction.id}
+                p="$3"
+                bg="$white"
                 borderRadius={8}
                 borderWidth={1}
                 borderColor="$borderLight200"
@@ -190,13 +217,21 @@ if (!client) {
                 <HStack alignItems="center" justifyContent="space-between">
                   <VStack flex={1}>
                     <HStack alignItems="center" space="xs">
-                      <Box 
-                        w={8} 
-                        h={8} 
-                        borderRadius="$full" 
-                        bg={transaction.type === 'pago' ? Colors.success : Colors.error}
+                      <Box
+                        w={8}
+                        h={8}
+                        borderRadius="$full"
+                        bg={
+                          transaction.type === "pago"
+                            ? Colors.success
+                            : Colors.error
+                        }
                       />
-                      <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                      <Text
+                        size="sm"
+                        fontWeight="$medium"
+                        color={Colors.primary}
+                      >
                         {transaction.description}
                       </Text>
                     </HStack>
@@ -204,12 +239,17 @@ if (!client) {
                       {formatDate(transaction.date)}
                     </Text>
                   </VStack>
-                  <Text 
-                    size="md" 
-                    fontWeight="$semibold" 
-                    color={transaction.type === 'pago' ? Colors.success : Colors.error}
+                  <Text
+                    size="md"
+                    fontWeight="$semibold"
+                    color={
+                      transaction.type === "pago"
+                        ? Colors.success
+                        : Colors.error
+                    }
                   >
-                    {transaction.type === 'pago' ? '-' : '+'}{formatCurrency(transaction.amount)}
+                    {transaction.type === "pago" ? "-" : "+"}
+                    {formatCurrency(transaction.amount)}
                   </Text>
                 </HStack>
               </Card>
@@ -217,7 +257,7 @@ if (!client) {
           )}
         </VStack>
       </ScrollView>
-      
+
       <RegisterPaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
@@ -225,7 +265,7 @@ if (!client) {
         clientName={client.firstName}
         currentDebt={currentBalance}
       />
-      
+
       <AddDebtModal
         isOpen={isDebtModalOpen}
         onClose={() => setIsDebtModalOpen(false)}

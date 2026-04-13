@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import {
   Avatar,
   AvatarFallbackText,
@@ -13,51 +13,42 @@ import {
   Pressable,
   ScrollView,
   Text,
-  VStack
-} from '@gluestack-ui/themed';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import Header from '../../components/Header';
-import { Colors } from '../../constants/Colors';
-import { useBusiness } from '../../contexts/BusinessContext';
-import { useClients } from '../../contexts/ClientContext';
-
-
-
-
+  VStack,
+} from "@gluestack-ui/themed";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import Header from "../../components/Header";
+import { Colors } from "../../constants/Colors";
+import { useBusiness } from "../../contexts/BusinessContext";
+import { useClients } from "../../contexts/ClientContext";
 
 export default function ClientScreen() {
   const { businessId } = useLocalSearchParams();
   const { businesses } = useBusiness();
   const { clients, loadClientsByBusiness, clearClients } = useClients();
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
 
-  
-  const business = businesses.find(b => b.id === businessId);
+  const business = businesses.find((b) => b.id === businessId);
 
-useEffect(() => {
+  useEffect(() => {
+    if (!businessId) return;
 
-  if (!businessId) return;
+    setLoading(true);
+    clearClients();
 
-  setLoading(true);
-  clearClients(); 
-
-  loadClientsByBusiness(String(businessId))
-    .finally(() => setLoading(false));
-
-}, [businessId]);
-
+    loadClientsByBusiness(String(businessId)).finally(() => setLoading(false));
+  }, [businessId]);
 
   const normalizeText = (text: string) => {
     return text
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
   };
 
-  const filteredClients = clients.filter(client =>
-    normalizeText(`${client.name}`).includes(normalizeText(searchText))
+  const filteredClients = clients.filter((client) =>
+    normalizeText(`${client.name}`).includes(normalizeText(searchText)),
   );
 
   const handleClientPress = (clientId: string) => {
@@ -65,62 +56,77 @@ useEffect(() => {
   };
 
   const getStatusColor = (status: string) => {
-    return status === 'al_dia' ? Colors.success : Colors.error;
+    return status === "al_dia" ? Colors.success : Colors.error;
   };
 
   const getStatusText = (status: string) => {
-    return status === 'al_dia' ? 'Al día' : 'Debe';
+    return status === "al_dia" ? "Al día" : "Debe";
   };
 
-const handleAddClient = () => {
-  router.push({
-    pathname: '/(client)/addClientCredit',
-    params: { businessId: String(businessId) },
-  });
-};
-if (loading) {
-  return (
-    <Box flex={1} alignItems="center" justifyContent="center">
-      <Text>Cargando clientes...</Text>
-    </Box>
-  );
-}
+  const handleAddClient = () => {
+    router.push({
+      pathname: "/(client)/addClientCredit",
+      params: { businessId: String(businessId) },
+    });
+  };
+  if (loading) {
+    return (
+      <Box flex={1} alignItems="center" justifyContent="center">
+        <Text>Cargando clientes...</Text>
+      </Box>
+    );
+  }
 
- console.log("BusinessId recibido:", businessId);
+  console.log("BusinessId recibido:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">
-      <Pressable onPress={() => { router.back() }}>
+      <Pressable
+        onPress={() => {
+          router.back();
+        }}
+      >
         <Ionicons
           name="arrow-back"
           size={24}
           color={Colors.gray600}
           style={{ marginTop: 50, marginLeft: 20 }}
         />
-        </Pressable>
+      </Pressable>
       <Header title="Clientes" />
-      <Box bg="$white" p="$4" borderBottomWidth={1} borderBottomColor="$borderLight200">
+      <Box
+        bg="$white"
+        p="$4"
+        borderBottomWidth={1}
+        borderBottomColor="$borderLight200"
+      >
         <VStack space="md">
           <VStack space="xs" alignItems="center">
             <Heading size="xl" color={Colors.primary}>
-              Mis Clientes - {business?.name ?? 'Negocio'}
+              Mis Clientes - {business?.name ?? "Negocio"}
             </Heading>
             <Text size="sm" color="$textLight500">
               {filteredClients.length} de {clients.length} clientes
             </Text>
           </VStack>
-          
-          <HStack 
-            alignItems="center" 
-            space="sm" 
-            bg="$backgroundLight50" 
-            borderRadius={8} 
-            borderWidth={1} 
-            borderColor="$borderLight200" 
-            px="$3" 
+
+          <HStack
+            alignItems="center"
+            space="sm"
+            bg="$backgroundLight50"
+            borderRadius={8}
+            borderWidth={1}
+            borderColor="$borderLight200"
+            px="$3"
             h={44}
           >
             <Ionicons name="search" size={18} color={Colors.gray400} />
-            <Input flex={1} variant="outline" size="sm" bg="transparent" borderWidth={0}>
+            <Input
+              flex={1}
+              variant="outline"
+              size="sm"
+              bg="transparent"
+              borderWidth={0}
+            >
               <InputField
                 placeholder="Buscar cliente..."
                 value={searchText}
@@ -130,14 +136,14 @@ if (loading) {
           </HStack>
         </VStack>
       </Box>
-      
+
       <ScrollView flex={1} p="$4" contentContainerStyle={{ paddingBottom: 20 }}>
         <VStack space="md">
           {filteredClients.map((client) => (
-            <Card 
-              key={client.id} 
-              p="$4" 
-              bg="$white" 
+            <Card
+              key={client.id}
+              p="$4"
+              bg="$white"
               borderRadius={12}
               borderWidth={1}
               borderColor="$borderLight200"
@@ -145,36 +151,46 @@ if (loading) {
               elevation={0}
               $pressed={{
                 bg: "$backgroundLight100",
-                borderColor: Colors.primary
+                borderColor: Colors.primary,
               }}
             >
               <Pressable onPress={() => handleClientPress(client.id)}>
                 <HStack alignItems="center" justifyContent="space-between">
                   <HStack alignItems="center" space="md" flex={1}>
                     <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
-                      <AvatarFallbackText color={Colors.gray600}>{client.name}</AvatarFallbackText>
+                      <AvatarFallbackText color={Colors.gray600}>
+                        {client.name}
+                      </AvatarFallbackText>
                     </Avatar>
                     <VStack flex={1}>
-                      <Text size="md" fontWeight="$semibold" color={Colors.primary}>
-                        {client.name} 
+                      <Text
+                        size="md"
+                        fontWeight="$semibold"
+                        color={Colors.primary}
+                      >
+                        {client.name}
                       </Text>
                       <HStack alignItems="center" space="xs">
-                        <Box 
-                          w={8} 
-                          h={8} 
-                          borderRadius="$full" 
+                        <Box
+                          w={8}
+                          h={8}
+                          borderRadius="$full"
                           bg={getStatusColor(client.status)}
                         />
-                        <Text size="sm" color={getStatusColor(client.status)} fontWeight="$medium">
+                        <Text
+                          size="sm"
+                          color={getStatusColor(client.status)}
+                          fontWeight="$medium"
+                        >
                           {getStatusText(client.status)}
                         </Text>
                       </HStack>
                     </VStack>
                   </HStack>
-                  <Ionicons 
-                    name="chevron-forward" 
-                    size={20} 
-                    color={Colors.gray400} 
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors.gray400}
                   />
                 </HStack>
               </Pressable>
@@ -183,14 +199,14 @@ if (loading) {
         </VStack>
       </ScrollView>
       <Box p="$4">
-        <Button 
+        <Button
           size="lg"
           w="100%"
           h={52}
           borderRadius={14}
           bg={Colors.primary}
           $pressed={{
-            bg: Colors.primaryHover
+            bg: Colors.primaryHover,
           }}
           onPress={handleAddClient}
         >
