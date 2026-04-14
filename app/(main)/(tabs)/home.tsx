@@ -41,10 +41,10 @@ export default function HomeScreen() {
         <VStack space="xl">
           {/* Saludo */}
           <VStack space="xs" pt="$2">
-            <Heading size="4xl" color={Colors.primary}>
+            <Heading size="3xl" color={Colors.primary}>
               ¡Hola,{" "}
               <Text size="4xl" fontWeight="$bold" color="#2563eb">
-                Don, {displayName}!
+                Don {displayName}!
               </Text>
             </Heading>
             <Text size="md" color={Colors.gray400}>
