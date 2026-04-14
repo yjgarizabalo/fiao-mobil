@@ -80,19 +80,7 @@ export default function ClientScreen() {
   console.log("BusinessId recibido:", businessId);
   return (
     <Box flex={1} bg="$backgroundLight50">
-      <Pressable
-        onPress={() => {
-          router.back();
-        }}
-      >
-        <Ionicons
-          name="arrow-back"
-          size={24}
-          color={Colors.gray600}
-          style={{ marginTop: 50, marginLeft: 20 }}
-        />
-      </Pressable>
-      <Header title="Clientes" />
+      <Header title="Clientes" showBack />
       <Box
         bg="$white"
         p="$4"

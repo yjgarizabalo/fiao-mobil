@@ -1,41 +1,41 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import {
-  Box,
-  Button,
-  ButtonText,
-  Heading,
-  Image,
-  Input,
-  InputField,
-  InputIcon,
-  InputSlot,
-  Pressable,
-  Text,
-  VStack
-} from '@gluestack-ui/themed';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert } from 'react-native';
-import { Colors } from '../../constants/Colors';
-import { AuthMessages } from '../../constants/Messages';
-import { useAuth } from '../../contexts/AuthContext';
-import { AuthError } from '../../services/authService';
-import { isValidIdentifier } from '../../utils/validation';
+    Box,
+    Button,
+    ButtonText,
+    Heading,
+    Image,
+    Input,
+    InputField,
+    InputIcon,
+    InputSlot,
+    Pressable,
+    Text,
+    VStack,
+} from "@gluestack-ui/themed";
+import { router } from "expo-router";
+import { useState } from "react";
+import { Alert } from "react-native";
+import { Colors } from "../../constants/Colors";
+import { AuthMessages } from "../../constants/Messages";
+import { useAuth } from "../../contexts/AuthContext";
+import { AuthError } from "../../services/authService";
+import { isValidIdentifier } from "../../utils/validation";
 
 export default function LoginScreen() {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const { login } = useAuth();
 
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!identifier.trim()) newErrors.identifier = 'Este campo es obligatorio';
-    if (!password.trim()) newErrors.password = 'Este campo es obligatorio';
-    
+    const newErrors: { [key: string]: string } = {};
+
+    if (!identifier.trim()) newErrors.identifier = "Este campo es obligatorio";
+    if (!password.trim()) newErrors.password = "Este campo es obligatorio";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -46,31 +46,34 @@ export default function LoginScreen() {
     }
 
     if (!isValidIdentifier(identifier)) {
-      Alert.alert('Datos inválidos', 'Ingresa un correo electrónico válido o un número de identificación.');
+      Alert.alert(
+        "Datos inválidos",
+        "Ingresa un correo electrónico válido o un número de identificación.",
+      );
       return;
     }
 
     setIsLoading(true);
     try {
       await login({ identifier, password });
-      router.replace('/(main)/(tabs)/dashBoard');
+      router.replace("/(main)/(tabs)/home");
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
-      
+
       if (error instanceof AuthError) {
         switch (error.type) {
-          case 'INVALID_CREDENTIALS':
+          case "INVALID_CREDENTIALS":
             errorMessage = AuthMessages.login.invalidCredentials;
             break;
-          case 'NETWORK_ERROR':
+          case "NETWORK_ERROR":
             errorMessage = AuthMessages.login.networkError;
             break;
-          case 'SERVER_ERROR':
+          case "SERVER_ERROR":
             errorMessage = AuthMessages.login.serverError;
             break;
         }
       }
-      
+
       Alert.alert(errorMessage.title, errorMessage.message);
     } finally {
       setIsLoading(false);
@@ -81,7 +84,7 @@ export default function LoginScreen() {
     <Box flex={1} justifyContent="center" p="$6" bg="$white">
       <VStack space="lg" alignItems="center">
         <Image
-          source={require('../../assets/images/fiaoicon.png')}
+          source={require("../../assets/images/fiaoicon.png")}
           alt="Fiao"
           w={100}
           h={100}
@@ -92,10 +95,10 @@ export default function LoginScreen() {
         </Heading>
 
         <VStack space="xs" w="100%">
-          <Input 
-            size="lg" 
-            w="100%" 
-            h={54} 
+          <Input
+            size="lg"
+            w="100%"
+            h={54}
             borderRadius={4}
             borderColor={errors.identifier ? Colors.error : "$borderLight200"}
           >
@@ -115,9 +118,9 @@ export default function LoginScreen() {
         </VStack>
 
         <VStack space="xs" w="100%">
-          <Input 
-            size="lg" 
-            w="100%" 
+          <Input
+            size="lg"
+            w="100%"
             h={54}
             borderColor={errors.password ? Colors.error : "$borderLight200"}
           >
@@ -128,13 +131,15 @@ export default function LoginScreen() {
               type={showPassword ? "text" : "password"}
             />
             <InputSlot pr="$3" onPress={() => setShowPassword(!showPassword)}>
-              <InputIcon as={() => (
-                <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color={Colors.gray400} 
-                />
-              )} />
+              <InputIcon
+                as={() => (
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color={Colors.gray400}
+                  />
+                )}
+              />
             </InputSlot>
           </Input>
           {errors.password && (
@@ -144,10 +149,14 @@ export default function LoginScreen() {
           )}
         </VStack>
 
-        <Pressable onPress={() => router.push('/(auth)/register')} mt="$2">
+        <Pressable onPress={() => router.push("/(auth)/register")} mt="$2">
           <Text color={Colors.gray400}>
-            ¿Olvidaste tu contraseña?{' '}
-            <Text color={Colors.primary} textDecorationLine="underline" fontWeight="bold">
+            ¿Olvidaste tu contraseña?{" "}
+            <Text
+              color={Colors.primary}
+              textDecorationLine="underline"
+              fontWeight="bold"
+            >
               Ingresa aquí
             </Text>
           </Text>
@@ -161,13 +170,13 @@ export default function LoginScreen() {
           borderRadius={14}
           bg={Colors.primary}
           $pressed={{
-            bg: Colors.primaryHover
+            bg: Colors.primaryHover,
           }}
           onPress={handleLogin}
           isDisabled={isLoading}
         >
           <ButtonText color={Colors.white}>
-            {isLoading ? 'Iniciando...' : 'Iniciar'}
+            {isLoading ? "Iniciando..." : "Iniciar"}
           </ButtonText>
         </Button>
 
@@ -193,11 +202,28 @@ export default function LoginScreen() {
           </HStack>
         </Button> */}
 
-        <Pressable onPress={() => router.push('/(auth)/register')} mt="$2">
-          <Text color={Colors.gray400}>¿No tienes cuenta?{' '} <Text color={Colors.primary} textDecorationLine="underline" fontWeight="bold">Regístrate</Text></Text>
+        <Pressable onPress={() => router.push("/(auth)/register")} mt="$2">
+          <Text color={Colors.gray400}>
+            ¿No tienes cuenta?{" "}
+            <Text
+              color={Colors.primary}
+              textDecorationLine="underline"
+              fontWeight="bold"
+            >
+              Regístrate
+            </Text>
+          </Text>
         </Pressable>
-        
-        <Box w="100%" h={60} mt="$6" bg={Colors.gray100} borderRadius={12} justifyContent="center" alignItems="center">
+
+        <Box
+          w="100%"
+          h={60}
+          mt="$6"
+          bg={Colors.gray100}
+          borderRadius={12}
+          justifyContent="center"
+          alignItems="center"
+        >
           <Text fontSize={12} color={Colors.gray500} fontWeight="bold">
             PATROCINADORES
           </Text>

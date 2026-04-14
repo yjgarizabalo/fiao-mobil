@@ -3,9 +3,15 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./"],
+      "@/components/*": ["./components/*"],
+      "@/constants/*": ["./constants/*"],
+      "@/contexts/*": ["./contexts/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/services/*": ["./services/*"],
+      "@/utils/*": ["./utils/*"],
+      "@/config/*": ["./config/*"],
+      "@/assets/*": ["./assets/*"]
     }
   },
   "include": [

@@ -1,39 +1,41 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import { Colors } from '../../../constants/Colors';
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import { Colors } from "@/constants/Colors";
 
 export default function TabLayout() {
   return (
-    <Tabs screenOptions={{ 
-      headerShown: false,
-      tabBarActiveTintColor: Colors.black,
-      tabBarInactiveTintColor: Colors.gray400
-    }}>
-      <Tabs.Screen 
-        name="dashBoard" 
-        options={{ 
-          title: 'DashBoard',
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: Colors.black,
+        tabBarInactiveTintColor: Colors.gray400,
+      }}
+    >
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: "Inicio",
           tabBarIcon: ({ focused }) => (
-            <Ionicons 
-              name="home-outline" 
-              size={24} 
-              color={focused ? Colors.black : Colors.gray400} 
+            <Ionicons
+              name="home-outline"
+              size={24}
+              color={focused ? Colors.black : Colors.gray400}
             />
-          )
-        }} 
+          ),
+        }}
       />
-      <Tabs.Screen 
-        name="profile" 
-        options={{ 
-          title: 'Perfil',
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Perfil",
           tabBarIcon: ({ focused }) => (
-            <Ionicons 
-              name="person" 
-              size={24} 
-              color={focused ? Colors.black : Colors.gray400} 
+            <Ionicons
+              name="person"
+              size={24}
+              color={focused ? Colors.black : Colors.gray400}
             />
-          )
-        }} 
+          ),
+        }}
       />
     </Tabs>
   );

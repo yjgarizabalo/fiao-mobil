@@ -125,11 +125,6 @@ export class AuthService {
 
 static async logout(userId: string, refreshToken: string): Promise<any> {
   const url = getApiUrl('/logout');
-  console.log('Attempting logout to:', url);
-
-  if (!refreshToken) {
-    throw new Error('No refresh token provided');
-  }
 
   try {
     const response = await fetch(url, {
@@ -137,26 +132,21 @@ static async logout(userId: string, refreshToken: string): Promise<any> {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'x-refresh-token': refreshToken,
       },
       body: JSON.stringify({
         userId,
-        allDevices: false
+        refreshToken,
       }),
     });
 
     const responseText = await response.text();
-    console.log('Response status:', response.status);
-    console.log('Response body:', responseText);
 
     if (response.status === 401) {
       throw new AuthError('INVALID_CREDENTIALS', 'Refresh token inválido');
     }
-
     if (response.status >= 500) {
       throw new AuthError('SERVER_ERROR', 'Error del servidor');
     }
-
     if (!response.ok) {
       throw new AuthError('UNKNOWN_ERROR', `Error ${response.status}`);
     }
@@ -164,14 +154,10 @@ static async logout(userId: string, refreshToken: string): Promise<any> {
     return JSON.parse(responseText || '{}');
 
   } catch (error) {
-    console.log('Logout error:', error);
-
     if (error instanceof AuthError) throw error;
-
     if (error instanceof TypeError && error.message.includes('Network request failed')) {
       throw new AuthError('NETWORK_ERROR', 'No se pudo conectar al servidor');
     }
-
     throw new AuthError('NETWORK_ERROR', 'Error de conexión');
   }
 }
