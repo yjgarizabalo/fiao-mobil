@@ -1,3 +1,7 @@
+import Header from "@/components/Header";
+import { Colors } from "@/constants/Colors";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Box,
@@ -10,10 +14,6 @@ import {
   VStack,
 } from "@gluestack-ui/themed";
 import { router } from "expo-router";
-import Header from "../../../components/Header";
-import { Colors } from "../../../constants/Colors";
-import { useAuth } from "../../../contexts/AuthContext";
-import { useBusiness } from "../../../contexts/BusinessContext";
 
 export default function HomeScreen() {
   const { user } = useAuth();

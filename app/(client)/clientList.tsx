@@ -125,7 +125,7 @@ export default function ClientScreen() {
         </VStack>
       </Box>
 
-      <ScrollView flex={1} p="$4" contentContainerStyle={{ paddingBottom: 20 }}>
+      <ScrollView flex={1} p="$4" contentContainerStyle={{ paddingBottom: 88 }}>
         <VStack space="md">
           {filteredClients.map((client) => (
             <Card
@@ -186,7 +186,16 @@ export default function ClientScreen() {
           ))}
         </VStack>
       </ScrollView>
-      <Box p="$4">
+      <Box
+        position="absolute"
+        bottom={0}
+        left={0}
+        right={0}
+        p="$4"
+        bg="$backgroundLight50"
+        borderTopWidth={1}
+        borderTopColor="$borderLight200"
+      >
         <Button
           size="lg"
           w="100%"

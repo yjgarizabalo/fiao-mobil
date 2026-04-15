@@ -1,6 +1,6 @@
+import { Colors } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Colors } from "@/constants/Colors";
 
 export default function TabLayout() {
   return (
@@ -18,6 +18,32 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <Ionicons
               name="home-outline"
+              size={24}
+              color={focused ? Colors.black : Colors.gray400}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="businesses"
+        options={{
+          title: "Negocios",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons
+              name="storefront-outline"
+              size={24}
+              color={focused ? Colors.black : Colors.gray400}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="clients"
+        options={{
+          title: "Clientes",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons
+              name="people-outline"
               size={24}
               color={focused ? Colors.black : Colors.gray400}
             />
