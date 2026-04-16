@@ -52,7 +52,7 @@ export default function ClientScreen() {
   );
 
   const handleClientPress = (clientId: string) => {
-    router.push(`/(client)/client?id=${clientId}`);
+    router.push(`/(client)/clientDetail?id=${clientId}`);
   };
 
   const getStatusColor = (status: string) => {

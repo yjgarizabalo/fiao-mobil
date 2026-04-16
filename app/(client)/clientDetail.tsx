@@ -1,4 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+import AddDebtModal from "@/components/AddDebtModal";
+import Header from "@/components/Header";
+import RegisterPaymentModal from "@/components/RegisterPaymentModal";
+import { Colors } from "@/constants/Colors";
+import { useClients } from "@/contexts/ClientContext";
 import {
   Box,
   Button,
@@ -6,18 +10,12 @@ import {
   Card,
   HStack,
   Heading,
-  Pressable,
   ScrollView,
   Text,
   VStack,
 } from "@gluestack-ui/themed";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import AddDebtModal from "../../components/AddDebtModal";
-import Header from "../../components/Header";
-import RegisterPaymentModal from "../../components/RegisterPaymentModal";
-import { Colors } from "../../constants/Colors";
-import { useClients } from "../../contexts/ClientContext";
 
 interface Transaction {
   id: string;
@@ -31,7 +29,7 @@ const mockTransactions: Transaction[] = [];
 
 export default function CreditClientScreen() {
   const { id } = useLocalSearchParams();
-  const { getClient, loadClientsByBusiness, clients } = useClients();
+  const { getClient } = useClients();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
   const [client, setClient] = useState<any>(null);
@@ -39,28 +37,22 @@ export default function CreditClientScreen() {
 
   useEffect(() => {
     const load = async () => {
-      if (!id) return;
-
-      const localClient = getClient(id as string);
-
-      if (localClient) {
-        setClient(localClient);
+      if (!id) {
         setLoading(false);
         return;
       }
-
-      // Cliente no estaba en memoria → recargar
-      if (clients.length === 0) {
-        // Intenta reconstruir desde businessId en session si hay
+      try {
+        const result = await getClient(id as string);
+        setClient(result ?? null);
+      } catch (error) {
+        console.error("Error loading client detail:", error);
+        setClient(null);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      setLoading(false);
     };
-
     load();
-  }, [id, clients]);
+  }, [getClient, id]);
 
   if (loading) {
     return (
@@ -78,55 +70,32 @@ export default function CreditClientScreen() {
     );
   }
 
-  const currentBalance = client.balance;
+  const currentBalance = client.balance ?? 0;
 
-  const handleBack = () => {
-    router.back();
-  };
-
-  const handleRegisterPayment = () => {
-    setIsPaymentModalOpen(true);
-  };
-
-  const handleAddDebt = () => {
-    setIsDebtModalOpen(true);
-  };
+  const handleRegisterPayment = () => setIsPaymentModalOpen(true);
+  const handleAddDebt = () => setIsDebtModalOpen(true);
 
   const handlePaymentSubmit = (data: {
     amount: number;
     description: string;
   }) => {
     console.log("Pago registrado:", data);
-    // Aquí implementarías la lógica para guardar el pago
   };
 
   const handleDebtSubmit = (data: { amount: number; description: string }) => {
     console.log("Deuda agregada:", data);
-    // Aquí implementarías la lógica para guardar la deuda
   };
 
-  const formatCurrency = (amount: number) => {
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-ES");
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("es-ES");
 
   return (
     <Box flex={1} bg="$backgroundLight50">
-      <Header title="Detalle Cliente" />
+      <Header title={client.name} showBack />
 
       <Box p="$4">
-        <HStack alignItems="center" space="md" mb="$4">
-          <Pressable onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-          </Pressable>
-          <Heading size="lg" color={Colors.primary} flex={1}>
-            {client.firstName} {client.lastName}
-          </Heading>
-        </HStack>
-
         <Card
           p="$4"
           bg="$white"
@@ -262,7 +231,7 @@ export default function CreditClientScreen() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onSubmit={handlePaymentSubmit}
-        clientName={client.firstName}
+        clientName={client.name}
         currentDebt={currentBalance}
       />
 
@@ -270,7 +239,7 @@ export default function CreditClientScreen() {
         isOpen={isDebtModalOpen}
         onClose={() => setIsDebtModalOpen(false)}
         onSubmit={handleDebtSubmit}
-        clientName={client.firstName}
+        clientName={client.name}
       />
     </Box>
   );

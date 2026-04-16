@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import Header from "../../../components/Header";
 import { Colors } from "../../../constants/Colors";
 import { useBusiness } from "../../../contexts/BusinessContext";
-import { Client } from "../../../contexts/ClientContext";
+import { Client, useClients } from "../../../contexts/ClientContext";
 import api from "../../../utils/api";
 
 const normalizeText = (text: string) =>
@@ -16,6 +16,7 @@ const normalizeText = (text: string) =>
 
 export default function DebtorsTab() {
   const { businesses } = useBusiness();
+  const { setClients } = useClients();
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -28,9 +29,10 @@ export default function DebtorsTab() {
         const merged: Client[] = responses.flatMap((r) => r.data);
         const unique = Array.from(new Map(merged.map((c) => [c.id, c])).values());
         setAllClients(unique);
+        setClients(unique);
       })
       .finally(() => setLoading(false));
-  }, [businesses]);
+  }, [businesses, setClients]);
 
   const filtered = allClients.filter((c) =>
     normalizeText(c.name).includes(normalizeText(searchText))
@@ -79,7 +81,7 @@ export default function DebtorsTab() {
         ) : (
           <VStack space="md">
             {filtered.map((client) => (
-              <Pressable key={client.id} onPress={() => router.push(`/(client)/client?id=${client.id}`)}>
+              <Pressable key={client.id} onPress={() => router.push(`/(client)/clientDetail?id=${client.id}`)}>
                 <Card p="$4" bg="$white" borderRadius={12} borderWidth={1}
                   borderColor="$borderLight200" shadowOpacity={0} elevation={0}
                   $pressed={{ bg: "$backgroundLight100", borderColor: Colors.primary }}>
