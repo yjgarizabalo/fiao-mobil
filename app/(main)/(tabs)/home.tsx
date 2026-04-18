@@ -20,12 +20,7 @@ export default function HomeScreen() {
   const { businesses } = useBusiness();
 
   const handleViewClients = () => {
-    if (businesses.length > 0) {
-      router.push({
-        pathname: "/(client)/clientList",
-        params: { businessId: businesses[0].id, key: businesses[0].id },
-      });
-    }
+    router.push("/(client)/clientList");
   };
 
   const handleViewBusiness = () => {

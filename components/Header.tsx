@@ -7,11 +7,13 @@ import { Colors } from "../constants/Colors";
 interface HeaderProps {
   title?: string;
   showBack?: boolean;
+  onBackPress?: () => void;
 }
 
 export default function Header({
   title = "Fiao",
   showBack = false,
+  onBackPress,
 }: HeaderProps) {
   const statusBarHeight =
     Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) : 44;
@@ -29,7 +31,7 @@ export default function Header({
     >
       {showBack ? (
         <>
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={onBackPress ?? (() => router.back())}>
             <Ionicons name="arrow-back" size={24} color={Colors.gray600} />
           </Pressable>
           <Image

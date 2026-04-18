@@ -6,11 +6,12 @@ import api from '../utils/api';
 export interface businesses {
   id: string;
   name: string;
+  address: string;
 }
 
 interface BusinessContextType {
   businesses: businesses[];
-  addBusiness: (businessData: Omit<businesses, 'id'>) => void;
+  addBusiness: (businessData: Omit<businesses, 'id'>) => Promise<void>;
   getBusiness: (id: string) => businesses | undefined;
 }
 
@@ -50,6 +51,7 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       setBusinesses((prev) => [...prev, response.data]);
     } catch (error) {
       console.error('Error creating business:', error);
+      throw error;
     }
   };
 

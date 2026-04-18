@@ -1,4 +1,11 @@
-import React, { createContext, ReactNode, useContext, useState } from "react";
+import React, {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../utils/api";
 
@@ -41,7 +48,7 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [clients, setClients] = useState<Client[]>([]);
   const { user } = useAuth();
 
-  const addClient = async (
+  const addClient = useCallback(async (
     businessId: string,
     clientData: Omit<Client, "id" | "status" | "balance">,
   ) => {
@@ -55,9 +62,9 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error creating client:", error);
     }
-  };
+  }, []);
 
-  const getClient = async (id: string) => {
+  const getClient = useCallback(async (id: string) => {
     const local = clients.find((c) => c.id === id);
     if (local) return local;
     try {
@@ -70,29 +77,32 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
       }
       throw error;
     }
-  };
+  }, [clients]);
 
-  const loadClientsByBusiness = async (businessId: string) => {
+  const loadClientsByBusiness = useCallback(async (businessId: string) => {
     try {
       const res = await api.get(`/business/${businessId}/debtors`);
       setClients(res.data);
     } catch (error) {
       console.error("Error loading clients:", error);
     }
-  };
-  const clearClients = () => setClients([]);
+  }, []);
+  const clearClients = useCallback(() => setClients([]), []);
+
+  const value = useMemo(
+    () => ({
+      clients,
+      addClient,
+      getClient,
+      loadClientsByBusiness,
+      setClients,
+      clearClients,
+    }),
+    [clients, addClient, getClient, loadClientsByBusiness, clearClients],
+  );
 
   return (
-    <ClientContext.Provider
-      value={{
-        clients,
-        addClient,
-        getClient,
-        loadClientsByBusiness,
-        setClients,
-        clearClients,
-      }}
-    >
+    <ClientContext.Provider value={value}>
       {children}
     </ClientContext.Provider>
   );

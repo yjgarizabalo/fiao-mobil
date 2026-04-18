@@ -112,9 +112,16 @@ export default function BusinessListScreen() {
                           {business.name}
                         </AvatarFallbackText>
                       </Avatar>
-                      <Text size="md" fontWeight="$semibold" color={Colors.primary}>
-                        {business.name}
-                      </Text>
+                      <VStack flex={1} space="xs">
+                        <Text size="md" fontWeight="$semibold" color={Colors.primary}>
+                          {business.name}
+                        </Text>
+                        {!!business.address && (
+                          <Text size="sm" color="$textLight500">
+                            {business.address}
+                          </Text>
+                        )}
+                      </VStack>
                     </HStack>
                     <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
                   </HStack>

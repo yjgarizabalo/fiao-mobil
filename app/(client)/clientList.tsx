@@ -20,25 +20,54 @@ import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 import { Colors } from "../../constants/Colors";
 import { useBusiness } from "../../contexts/BusinessContext";
-import { useClients } from "../../contexts/ClientContext";
+import { Client, useClients } from "../../contexts/ClientContext";
+import api from "../../utils/api";
 
 export default function ClientScreen() {
   const { businessId } = useLocalSearchParams();
   const { businesses } = useBusiness();
-  const { clients, loadClientsByBusiness, clearClients } = useClients();
+  const { clients, loadClientsByBusiness, clearClients, setClients } = useClients();
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
+  const hasBusinessFilter = typeof businessId === "string" && businessId.length > 0;
 
   const business = businesses.find((b) => b.id === businessId);
 
   useEffect(() => {
-    if (!businessId) return;
-
     setLoading(true);
     clearClients();
+    if (hasBusinessFilter) {
+      loadClientsByBusiness(String(businessId)).finally(() => setLoading(false));
+      return;
+    }
 
-    loadClientsByBusiness(String(businessId)).finally(() => setLoading(false));
-  }, [businessId]);
+    if (!businesses.length) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
+    Promise.all(businesses.map((b) => api.get(`/business/${b.id}/debtors`)))
+      .then((responses) => {
+        const merged: Client[] = responses.flatMap((response) => response.data);
+        const unique = Array.from(
+          new Map(merged.map((client) => [client.id, client])).values(),
+        );
+        setClients(unique);
+      })
+      .catch((error) => {
+        console.error("Error loading all clients:", error);
+        setClients([]);
+      })
+      .finally(() => setLoading(false));
+  }, [
+    businessId,
+    businesses,
+    clearClients,
+    hasBusinessFilter,
+    loadClientsByBusiness,
+    setClients,
+  ]);
 
   const normalizeText = (text: string) => {
     return text
@@ -64,9 +93,14 @@ export default function ClientScreen() {
   };
 
   const handleAddClient = () => {
+    const targetBusinessId = hasBusinessFilter ? String(businessId) : businesses[0]?.id;
+    if (!targetBusinessId) {
+      return;
+    }
+
     router.push({
       pathname: "/(client)/addClientCredit",
-      params: { businessId: String(businessId) },
+      params: { businessId: targetBusinessId },
     });
   };
   if (loading) {
@@ -90,7 +124,9 @@ export default function ClientScreen() {
         <VStack space="md">
           <VStack space="xs" alignItems="center">
             <Heading size="xl" color={Colors.primary}>
-              Mis Clientes - {business?.name ?? "Negocio"}
+              {hasBusinessFilter
+                ? `Mis Clientes - ${business?.name ?? "Negocio"}`
+                : "Todos mis clientes"}
             </Heading>
             <Text size="sm" color="$textLight500">
               {filteredClients.length} de {clients.length} clientes

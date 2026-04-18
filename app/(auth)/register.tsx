@@ -1,18 +1,20 @@
 import {
-    Box,
-    Button,
-    ButtonText,
-    Heading,
-    HStack,
-    Input,
-    InputField,
-    Pressable,
-    Text,
-    VStack,
+  Box,
+  Button,
+  ButtonText,
+  Heading,
+  HStack,
+  Input,
+  InputField,
+  Pressable,
+  Text,
+  VStack,
 } from "@gluestack-ui/themed";
+import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, ScrollView } from "react-native";
+import Header from "../../components/Header";
 import { Colors } from "../../constants/Colors";
 import { AuthMessages } from "../../constants/Messages";
 import { useAuth } from "../../contexts/AuthContext";
@@ -29,15 +31,16 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const { register } = useAuth();
-  const { login } = useAuth();
+  const { register, login } = useAuth();
+
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!firstName.trim()) newErrors.firstName = "El nombre es obligatorio";
     if (!lastName.trim()) newErrors.lastName = "El apellido es obligatorio";
-    if (!documentNumber.trim())
+    if (!documentNumber.trim()) {
       newErrors.documentNumber = "El número de documento es obligatorio";
+    }
     if (!email.trim()) newErrors.email = "El email es obligatorio";
     if (!phone.trim()) newErrors.phone = "El teléfono es obligatorio";
     if (!password.trim()) newErrors.password = "La contraseña es obligatoria";
@@ -63,6 +66,7 @@ export default function RegisterScreen() {
         "Tu contraseña debe tener al menos 6 caracteres para mantener tu cuenta segura.",
       );
     }
+
     setLoading(true);
 
     try {
@@ -77,7 +81,6 @@ export default function RegisterScreen() {
       });
       await login({ identifier: email, password });
       router.replace("/(main)/(tabs)/home");
-      console.log("Register:", { name, email, password });
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
 
@@ -99,21 +102,19 @@ export default function RegisterScreen() {
     } finally {
       setLoading(false);
     }
-
-    // TODO: Implementar lógica de registro
   };
 
   return (
     <Box flex={1} bg="$backgroundLight50">
+      <Header
+        title="Registro"
+        showBack
+        onBackPress={() => router.replace("/(auth)/login")}
+      />
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <Box p="$6">
           <VStack space="lg" alignItems="center">
-            <Heading
-              size="2xl"
-              textAlign="center"
-              mb="$8"
-              color={Colors.primary}
-            >
+            <Heading size="2xl" color={Colors.primary} alignSelf="flex-start">
               Crear Cuenta
             </Heading>
 
@@ -168,34 +169,54 @@ export default function RegisterScreen() {
             </VStack>
 
             <VStack space="sm" w="100%">
-              <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                Tipo de Documento *
-              </Text>
               <HStack space="sm" w="100%">
-                <Input size="lg" flex={0.2} h={54} borderRadius={4}>
-                  <InputField
-                    placeholder="CC"
-                    value={documentType}
-                    onChangeText={setDocumentType}
-                  />
-                </Input>
+                <VStack space="sm" flex={0.4}>
+                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                    Tipo *
+                  </Text>
+                  <Box
+                    h={54}
+                    borderRadius={4}
+                    borderWidth={1}
+                    borderColor="$borderLight200"
+                    justifyContent="center"
+                    overflow="hidden"
+                  >
+                    <Picker
+                      selectedValue={documentType}
+                      onValueChange={setDocumentType}
+                      style={{ height: 54 }}
+                    >
+                      <Picker.Item label="Cédula de ciudadanía" value="CC" />
+                      <Picker.Item label="NIT" value="NIT" />
+                      <Picker.Item
+                        label="Cédula de extranjería"
+                        value="FOREIGNER"
+                      />
+                    </Picker>
+                  </Box>
+                </VStack>
 
-                <Input
-                  size="lg"
-                  flex={0.8}
-                  h={54}
-                  borderRadius={4}
-                  borderColor={
-                    errors.documentNumber ? Colors.error : "$borderLight200"
-                  }
-                >
-                  <InputField
-                    placeholder="Ingresa el número de documento"
-                    value={documentNumber}
-                    onChangeText={setDocumentNumber}
-                    keyboardType="numeric"
-                  />
-                </Input>
+                <VStack space="sm" flex={0.6}>
+                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                    Número de Documento *
+                  </Text>
+                  <Input
+                    size="lg"
+                    h={54}
+                    borderRadius={4}
+                    borderColor={
+                      errors.documentNumber ? Colors.error : "$borderLight200"
+                    }
+                  >
+                    <InputField
+                      placeholder="Ingresa documento"
+                      value={documentNumber}
+                      onChangeText={setDocumentNumber}
+                      keyboardType="numeric"
+                    />
+                  </Input>
+                </VStack>
               </HStack>
               {errors.documentNumber && (
                 <Text size="xs" color={Colors.error}>
@@ -283,7 +304,6 @@ export default function RegisterScreen() {
             <Button
               size="lg"
               w="100%"
-              mt="$6"
               h={52}
               borderRadius={14}
               bg={Colors.primary}
@@ -292,6 +312,7 @@ export default function RegisterScreen() {
               $pressed={{
                 bg: Colors.primaryHover,
               }}
+              mt="$6"
             >
               <ButtonText color={Colors.white}>
                 {loading ? "Creando cuenta..." : "Registrarse"}
