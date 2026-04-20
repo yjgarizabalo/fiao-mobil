@@ -2,7 +2,10 @@ import AddDebtModal from "@/components/AddDebtModal";
 import Header from "@/components/Header";
 import RegisterPaymentModal from "@/components/RegisterPaymentModal";
 import { Colors } from "@/constants/Colors";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { useClients } from "@/contexts/ClientContext";
+import { useDebts } from "@/contexts/DebtsContext";
+import { usePayments } from "@/contexts/PaymentsContext";
 import {
   Box,
   Button,
@@ -17,42 +20,54 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 
-interface Transaction {
-  id: string;
-  type: "pago" | "deuda";
-  amount: number;
-  date: string;
-  description: string;
-}
-
-const mockTransactions: Transaction[] = [];
+const toNumber = (value: string | number | undefined | null): number => {
+  const parsed = Number(value);
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 export default function CreditClientScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams(); // id del cliente/deudor
   const { getClient } = useClients();
+  const { businesses } = useBusiness();
+  const { addDebt, loadDebtsByClient, debts, clearDebts } = useDebts();
+  const { addPayment, loadPaymentsByClient, payments, clearPayments } = usePayments();
+
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [addingDebt, setAddingDebt] = useState(false);
+  const [addingPayment, setAddingPayment] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
       if (!id) {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
       try {
+        clearDebts();
+        clearPayments();
         const result = await getClient(id as string);
+        if (cancelled) return;
         setClient(result ?? null);
+        await Promise.all([
+          loadDebtsByClient(id as string),
+          loadPaymentsByClient(id as string),
+        ]);
       } catch (error) {
         console.error("Error loading client detail:", error);
-        setClient(null);
+        if (!cancelled) setClient(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     load();
-  }, [getClient, id]);
+    return () => { cancelled = true; };
+  }, [id]);
 
   if (loading) {
     return (
@@ -70,32 +85,74 @@ export default function CreditClientScreen() {
     );
   }
 
-  const currentBalance = client.balance ?? 0;
+  const totalDebts = debts.reduce((sum, debt) => sum + toNumber(debt.amount), 0);
+  const totalPayments = payments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+  const currentBalance = totalDebts - totalPayments;
 
   const handleRegisterPayment = () => setIsPaymentModalOpen(true);
   const handleAddDebt = () => setIsDebtModalOpen(true);
 
-  const handlePaymentSubmit = (data: {
-    amount: number;
-    description: string;
-  }) => {
-    console.log("Pago registrado:", data);
+  // 👈 onSubmit ahora recibe debtId desde el modal (el usuario lo seleccionó)
+  const handlePaymentSubmit = async (data: { debtId: string; amount: number; note: string }) => {
+    const businessId = client.businessId ?? businesses[0]?.id;
+    if (!businessId) return;
+
+    setAddingPayment(true);
+    try {
+      await addPayment({
+        businessId,
+        debtId: data.debtId, // ✅ id real de la deuda, viene del selector del modal
+        amount: data.amount,
+        method: "CASH",
+        type: "PAYMENT",
+        note: data.note,
+      });
+      await loadPaymentsByClient(id as string);
+    } catch (error) {
+      console.error("Error al registrar pago:", error);
+    } finally {
+      setAddingPayment(false);
+    }
   };
 
-  const handleDebtSubmit = (data: { amount: number; description: string }) => {
-    console.log("Deuda agregada:", data);
+  const handleDebtSubmit = async (data: { amount: number; description: string }) => {
+    const businessId = client.businessId ?? businesses[0]?.id;
+    if (!businessId) return;
+
+    setAddingDebt(true);
+    try {
+      await addDebt({
+        businessId,
+        debtorId: id as string,
+        amount: toNumber(data.amount),
+        description: data.description,
+        dueDate: new Date().toISOString(),
+      });
+      await loadDebtsByClient(id as string);
+    } catch (error) {
+      console.error("Error al agregar deuda:", error);
+    } finally {
+      setAddingDebt(false);
+    }
   };
 
-  const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
 
   const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("es-ES");
+    new Date(dateString).toLocaleDateString("es-CO");
 
   return (
     <Box flex={1} bg="$backgroundLight50">
       <Header title={client.name} showBack />
 
       <Box p="$4">
+        {/* Card de saldo */}
         <Card
           p="$4"
           bg="$white"
@@ -115,12 +172,15 @@ export default function CreditClientScreen() {
               {formatCurrency(currentBalance)}
             </Heading>
             <Text size="xs" color="$textLight400">
-              {currentBalance > 0 ? "Debe" : "Al día"}
+              {currentBalance > 0
+                ? `${debts.length} ${debts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
+                : "Al día"}
             </Text>
           </VStack>
         </Card>
 
         <HStack space="md" mb="$4">
+          {/* 👈 Botón Registrar Pago — abre modal con selector de deuda */}
           <Button
             flex={1}
             size="md"
@@ -128,9 +188,10 @@ export default function CreditClientScreen() {
             borderRadius={12}
             bg={Colors.success}
             onPress={handleRegisterPayment}
+            isDisabled={addingPayment || debts.length === 0}
           >
             <ButtonText color={Colors.white} size="sm">
-              Registrar Pago
+              {addingPayment ? "Registrando..." : "Registrar Pago"}
             </ButtonText>
           </Button>
 
@@ -155,13 +216,9 @@ export default function CreditClientScreen() {
         </VStack>
       </Box>
 
-      <ScrollView
-        flex={1}
-        px="$4"
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
+      <ScrollView flex={1} px="$4" contentContainerStyle={{ paddingBottom: 20 }}>
         <VStack space="sm">
-          {mockTransactions.length === 0 ? (
+          {debts.length === 0 && payments.length === 0 ? (
             <Card
               p="$4"
               bg="$white"
@@ -174,65 +231,77 @@ export default function CreditClientScreen() {
               </Text>
             </Card>
           ) : (
-            mockTransactions.map((transaction) => (
-              <Card
-                key={transaction.id}
-                p="$3"
-                bg="$white"
-                borderRadius={8}
-                borderWidth={1}
-                borderColor="$borderLight200"
-              >
-                <HStack alignItems="center" justifyContent="space-between">
-                  <VStack flex={1}>
-                    <HStack alignItems="center" space="xs">
-                      <Box
-                        w={8}
-                        h={8}
-                        borderRadius="$full"
-                        bg={
-                          transaction.type === "pago"
-                            ? Colors.success
-                            : Colors.error
-                        }
-                      />
-                      <Text
-                        size="sm"
-                        fontWeight="$medium"
-                        color={Colors.primary}
-                      >
-                        {transaction.description}
+            <>
+              {/* Deudas */}
+              {debts.map((debt) => (
+                <Card
+                  key={`debt-${debt.id}`}
+                  p="$3"
+                  bg="$white"
+                  borderRadius={8}
+                  borderWidth={1}
+                  borderColor="$borderLight200"
+                >
+                  <HStack alignItems="center" justifyContent="space-between">
+                    <VStack flex={1}>
+                      <HStack alignItems="center" space="xs">
+                        <Box w={8} h={8} borderRadius="$full" bg={Colors.error} />
+                        <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                          {debt.description || "Sin descripción"}
+                        </Text>
+                      </HStack>
+                      <Text size="xs" color="$textLight500">
+                        {formatDate(debt.dueDate)}
                       </Text>
-                    </HStack>
-                    <Text size="xs" color="$textLight500">
-                      {formatDate(transaction.date)}
+                    </VStack>
+                    <Text size="md" fontWeight="$semibold" color={Colors.error}>
+                      +{formatCurrency(toNumber(debt.amount))}
                     </Text>
-                  </VStack>
-                  <Text
-                    size="md"
-                    fontWeight="$semibold"
-                    color={
-                      transaction.type === "pago"
-                        ? Colors.success
-                        : Colors.error
-                    }
-                  >
-                    {transaction.type === "pago" ? "-" : "+"}
-                    {formatCurrency(transaction.amount)}
-                  </Text>
-                </HStack>
-              </Card>
-            ))
+                  </HStack>
+                </Card>
+              ))}
+
+              {/* Pagos */}
+              {payments.map((payment) => (
+                <Card
+                  key={`payment-${payment.id}`}
+                  p="$3"
+                  bg="$white"
+                  borderRadius={8}
+                  borderWidth={1}
+                  borderColor="$borderLight200"
+                >
+                  <HStack alignItems="center" justifyContent="space-between">
+                    <VStack flex={1}>
+                      <HStack alignItems="center" space="xs">
+                        <Box w={8} h={8} borderRadius="$full" bg={Colors.success} />
+                        <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                          {payment.note || "Pago registrado"}
+                        </Text>
+                      </HStack>
+                      <Text size="xs" color="$textLight500">
+                        {payment.method}
+                      </Text>
+                    </VStack>
+                    <Text size="md" fontWeight="$semibold" color={Colors.success}>
+                      -{formatCurrency(toNumber(payment.amount))}
+                    </Text>
+                  </HStack>
+                </Card>
+              ))}
+            </>
           )}
         </VStack>
       </ScrollView>
 
+      {/* 👈 Modal recibe debts para el selector interno */}
       <RegisterPaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onSubmit={handlePaymentSubmit}
         clientName={client.name}
-        currentDebt={currentBalance}
+        debts={debts} // 👈 pasa todas las deudas al modal
+        isLoading={addingPayment}
       />
 
       <AddDebtModal
@@ -240,6 +309,7 @@ export default function CreditClientScreen() {
         onClose={() => setIsDebtModalOpen(false)}
         onSubmit={handleDebtSubmit}
         clientName={client.name}
+        isLoading={addingDebt}
       />
     </Box>
   );

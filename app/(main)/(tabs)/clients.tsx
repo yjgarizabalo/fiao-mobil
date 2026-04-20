@@ -1,41 +1,74 @@
+import AddDebtModal from "@/components/AddDebtModal";
+import Header from "@/components/Header";
+import { Colors } from "@/constants/Colors";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { Client, useClients } from "@/contexts/ClientContext";
+import { useDebts } from "@/contexts/DebtsContext";
+import api from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Avatar, AvatarFallbackText, Box, Button, ButtonText, Card, Heading,
-  HStack, Input, InputField, Pressable, ScrollView, Text, VStack,
+  Avatar,
+  AvatarFallbackText,
+  Box,
+  Button,
+  ButtonText,
+  Card,
+  Heading,
+  HStack,
+  Input,
+  InputField,
+  Pressable,
+  ScrollView,
+  Text,
+  VStack,
 } from "@gluestack-ui/themed";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import Header from "../../../components/Header";
-import { Colors } from "../../../constants/Colors";
-import { useBusiness } from "../../../contexts/BusinessContext";
-import { Client, useClients } from "../../../contexts/ClientContext";
-import api from "../../../utils/api";
 
 const normalizeText = (text: string) =>
   text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 export default function DebtorsTab() {
   const { businesses } = useBusiness();
-  const { setClients } = useClients();
-  const [allClients, setAllClients] = useState<Client[]>([]);
+  const { clients, setClients, clearClients } = useClients();
+  const { addDebt } = useDebts();
+
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [debtModalOpen, setDebtModalOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [addingDebt, setAddingDebt] = useState(false);
+
   useEffect(() => {
-    if (!businesses.length) return;
+    if (!businesses.length) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    clearClients();
+
     Promise.all(businesses.map((b) => api.get(`/business/${b.id}/debtors`)))
       .then((responses) => {
         const merged: Client[] = responses.flatMap((r) => r.data);
-        const unique = Array.from(new Map(merged.map((c) => [c.id, c])).values());
-        setAllClients(unique);
+        const unique = Array.from(
+          new Map(merged.map((c) => [c.id, c])).values(),
+        );
         setClients(unique);
       })
+      .catch((error) => {
+        console.error("Error loading clients:", error);
+        setClients([]);
+      })
       .finally(() => setLoading(false));
-  }, [businesses, setClients]);
 
-  const filtered = allClients.filter((c) =>
-    normalizeText(c.name).includes(normalizeText(searchText))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businesses.length]);
+
+  const filteredClients = clients.filter((c) =>
+    normalizeText(c.name).includes(normalizeText(searchText)),
   );
 
   const getStatusColor = (status: string) =>
@@ -52,6 +85,52 @@ export default function DebtorsTab() {
     });
   };
 
+  const handleClientPress = (clientId: string) => {
+    router.navigate(`/(client)/clientDetail?id=${clientId}`);
+  };
+
+  const handleOpenDebtModal = (client: Client) => {
+    setSelectedClient(client);
+    setDebtModalOpen(true);
+  };
+
+  const handleCloseDebtModal = () => {
+    setDebtModalOpen(false);
+    setSelectedClient(null);
+  };
+
+  const handleSubmitDebt = async (data: { amount: number; description: string }) => {
+    if (!selectedClient) return;
+
+    const businessId =
+      (selectedClient as any).businessId ?? businesses[0]?.id;
+    if (!businessId) return;
+
+    setAddingDebt(true);
+    try {
+      await addDebt({
+        businessId,
+        debtorId: selectedClient.id,
+        amount: data.amount,
+        description: data.description,
+        dueDate: new Date().toISOString(),
+      });
+      handleCloseDebtModal();
+    } catch (error) {
+      console.error("Error al agregar deuda:", error);
+    } finally {
+      setAddingDebt(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box flex={1} alignItems="center" justifyContent="center">
+        <Text>Cargando clientes...</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flex={1} bg="$backgroundLight50">
       <Header />
@@ -60,53 +139,91 @@ export default function DebtorsTab() {
           <VStack space="xs" alignItems="center">
             <Heading size="xl" color={Colors.primary}>Mis Clientes</Heading>
             <Text size="sm" color="$textLight500">
-              {filtered.length} de {allClients.length} clientes
+              {filteredClients.length} de {clients.length} clientes
             </Text>
           </VStack>
-          <HStack alignItems="center" space="sm" bg="$backgroundLight50"
-            borderRadius={8} borderWidth={1} borderColor="$borderLight200" px="$3" h={44}>
+          <HStack
+            alignItems="center"
+            space="sm"
+            bg="$backgroundLight50"
+            borderRadius={8}
+            borderWidth={1}
+            borderColor="$borderLight200"
+            px="$3"
+            h={44}
+          >
             <Ionicons name="search" size={18} color={Colors.gray400} />
             <Input flex={1} variant="outline" size="sm" bg="transparent" borderWidth={0}>
-              <InputField placeholder="Buscar cliente..." value={searchText} onChangeText={setSearchText} />
+              <InputField
+                placeholder="Buscar cliente..."
+                value={searchText}
+                onChangeText={setSearchText}
+              />
             </Input>
           </HStack>
         </VStack>
       </Box>
 
       <ScrollView flex={1} p="$4" contentContainerStyle={{ paddingBottom: 88 }}>
-        {loading ? (
-          <Text size="sm" color="$textLight500" textAlign="center" mt="$4">Cargando clientes...</Text>
-        ) : filtered.length === 0 ? (
-          <Text size="sm" color="$textLight500" textAlign="center" mt="$4">No se encontraron clientes</Text>
-        ) : (
-          <VStack space="md">
-            {filtered.map((client) => (
-              <Pressable key={client.id} onPress={() => router.push(`/(client)/clientDetail?id=${client.id}`)}>
-                <Card p="$4" bg="$white" borderRadius={12} borderWidth={1}
-                  borderColor="$borderLight200" shadowOpacity={0} elevation={0}
-                  $pressed={{ bg: "$backgroundLight100", borderColor: Colors.primary }}>
-                  <HStack alignItems="center" justifyContent="space-between">
-                    <HStack alignItems="center" space="md" flex={1}>
-                      <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
-                        <AvatarFallbackText color={Colors.gray600}>{client.name}</AvatarFallbackText>
-                      </Avatar>
-                      <VStack flex={1}>
-                        <Text size="md" fontWeight="$semibold" color={Colors.primary}>{client.name}</Text>
-                        <HStack alignItems="center" space="xs">
-                          <Box w={8} h={8} borderRadius="$full" bg={getStatusColor(client.status)} />
-                          <Text size="sm" color={getStatusColor(client.status)} fontWeight="$medium">
-                            {getStatusText(client.status)}
-                          </Text>
-                        </HStack>
-                      </VStack>
-                    </HStack>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+        <VStack space="md">
+          {filteredClients.map((client) => (
+            <Card
+              key={client.id}
+              p="$4"
+              bg="$white"
+              borderRadius={12}
+              borderWidth={1}
+              borderColor="$borderLight200"
+              shadowOpacity={0}
+              elevation={0}
+            >
+              <HStack alignItems="center" justifyContent="space-between">
+                <Pressable flex={1} onPress={() => handleClientPress(client.id)}>
+                  <HStack alignItems="center" space="md" flex={1}>
+                    <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
+                      <AvatarFallbackText color={Colors.gray600}>
+                        {client.name}
+                      </AvatarFallbackText>
+                    </Avatar>
+                    <VStack flex={1}>
+                      <Text size="md" fontWeight="$semibold" color={Colors.primary}>
+                        {client.name}
+                      </Text>
+                      <HStack alignItems="center" space="xs">
+                        <Box w={8} h={8} borderRadius="$full" bg={getStatusColor(client.status)} />
+                        <Text size="sm" color={getStatusColor(client.status)} fontWeight="$medium">
+                          {getStatusText(client.status)}
+                        </Text>
+                      </HStack>
+                    </VStack>
                   </HStack>
-                </Card>
-              </Pressable>
-            ))}
-          </VStack>
-        )}
+                </Pressable>
+
+                <HStack alignItems="center" space="sm">
+                  <Pressable
+                    onPress={() => handleOpenDebtModal(client)}
+                    bg={Colors.error}
+                    borderRadius={8}
+                    px="$3"
+                    py="$1"
+                    $pressed={{ opacity: 0.8 }}
+                  >
+                    <HStack alignItems="center" space="xs">
+                      <Ionicons name="add-circle-outline" size={16} color={Colors.white} />
+                      <Text size="xs" color={Colors.white} fontWeight="$medium">
+                        Deuda
+                      </Text>
+                    </HStack>
+                  </Pressable>
+
+                  <Pressable onPress={() => handleClientPress(client.id)}>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+                  </Pressable>
+                </HStack>
+              </HStack>
+            </Card>
+          ))}
+        </VStack>
       </ScrollView>
 
       <Box
@@ -134,6 +251,16 @@ export default function DebtorsTab() {
           </HStack>
         </Button>
       </Box>
+
+      {selectedClient && (
+        <AddDebtModal
+          isOpen={debtModalOpen}
+          onClose={handleCloseDebtModal}
+          onSubmit={handleSubmitDebt}
+          clientName={selectedClient.name}
+          isLoading={addingDebt}
+        />
+      )}
     </Box>
   );
 }

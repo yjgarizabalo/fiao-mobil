@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import {
   Button,
   ButtonText,
@@ -19,16 +20,16 @@ import {
   VStack,
 } from '@gluestack-ui/themed';
 import { useState } from 'react';
-import { Colors } from '../constants/Colors';
 
 interface AddDebtModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: { amount: number; description: string }) => void;
   clientName: string;
+  isLoading?: boolean;
 }
 
-export default function AddDebtModal({ isOpen, onClose, onSubmit, clientName }: AddDebtModalProps) {
+export default function AddDebtModal({ isOpen, onClose, onSubmit, clientName, isLoading = false }: AddDebtModalProps) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
@@ -111,9 +112,11 @@ export default function AddDebtModal({ isOpen, onClose, onSubmit, clientName }: 
               bg={Colors.error}
               borderRadius={8}
               onPress={handleSubmit}
-              isDisabled={!amount}
+              isDisabled={!amount || isLoading}
             >
-              <ButtonText color={Colors.white}>Agregar</ButtonText>
+              <ButtonText color={Colors.white}>
+                {isLoading ? "Guardando..." : "Agregar"}
+              </ButtonText>
             </Button>
           </HStack>
         </ModalFooter>

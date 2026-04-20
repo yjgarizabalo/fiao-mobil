@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   ButtonText,
   CloseIcon,
@@ -13,6 +14,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Pressable,
   Text,
   Textarea,
   TextareaInput,
@@ -21,30 +23,50 @@ import {
 import { useState } from 'react';
 import { Colors } from '../constants/Colors';
 
+interface Debt {
+  id: string;
+  amount: number;
+  description: string;
+  dueDate: string;
+}
+
 interface RegisterPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { amount: number; description: string }) => void;
+  onSubmit: (data: { debtId: string; amount: number; note: string }) => void; // 👈 incluye debtId
   clientName: string;
-  currentDebt: number;
+  debts: Debt[]; // 👈 lista de deudas para el selector
+  isLoading?: boolean;
 }
 
-export default function RegisterPaymentModal({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  clientName, 
-  currentDebt 
+export default function RegisterPaymentModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  clientName,
+  debts,
+  isLoading = false,
 }: RegisterPaymentModalProps) {
   const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
+  const [note, setNote] = useState('');
+  const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null); // 👈 deuda seleccionada
+
+  const selectedDebt = debts.find((d) => d.id === selectedDebtId) ?? null;
+
+  const handleClose = () => {
+    setAmount('');
+    setNote('');
+    setSelectedDebtId(null);
+    onClose();
+  };
 
   const handleSubmit = () => {
     const numAmount = parseFloat(amount.replace(/[^0-9]/g, ''));
-    if (numAmount > 0) {
-      onSubmit({ amount: numAmount, description: description.trim() });
+    if (numAmount > 0 && selectedDebtId) {
+      onSubmit({ debtId: selectedDebtId, amount: numAmount, note: note.trim() });
       setAmount('');
-      setDescription('');
+      setNote('');
+      setSelectedDebtId(null);
       onClose();
     }
   };
@@ -54,12 +76,19 @@ export default function RegisterPaymentModal({
     return numbers ? `$${parseInt(numbers).toLocaleString()}` : '';
   };
 
-  const formatCurrency = (amount: number) => {
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('es-CO');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={handleClose}>
       <ModalBackdrop />
       <ModalContent bg="$white" borderRadius={16} mx="$4">
         <ModalHeader borderBottomWidth={1} borderBottomColor="$borderLight200" pb="$3">
@@ -73,41 +102,83 @@ export default function RegisterPaymentModal({
 
         <ModalBody py="$4">
           <VStack space="md">
-            <VStack space="xs">
-              <Text size="sm" color={Colors.gray600}>
-                Cliente: {clientName}
-              </Text>
-              <Text size="sm" color={Colors.error}>
-                Deuda actual: {formatCurrency(currentDebt)}
-              </Text>
-            </VStack>
 
+            <Text size="sm" color={Colors.gray600}>
+              Cliente: {clientName}
+            </Text>
+
+            {/* 👈 Selector de deuda */}
             <VStack space="xs">
               <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                Monto del Pago
+                Selecciona la deuda a pagar
               </Text>
-              <Input borderRadius={8} borderColor="$borderLight300">
-                <InputField
-                  placeholder="$0"
-                  value={amount}
-                  onChangeText={(text) => setAmount(formatAmount(text))}
-                  keyboardType="numeric"
-                />
-              </Input>
+              <VStack space="xs">
+                {debts.map((debt) => (
+                  <Pressable key={debt.id} onPress={() => setSelectedDebtId(debt.id)}>
+                    <Box
+                      p="$3"
+                      borderRadius={8}
+                      borderWidth={1}
+                      borderColor={
+                        selectedDebtId === debt.id ? Colors.success : '$borderLight200'
+                      }
+                      bg={selectedDebtId === debt.id ? '$green50' : '$white'}
+                    >
+                      <HStack justifyContent="space-between" alignItems="center">
+                        <VStack flex={1}>
+                          <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                            {debt.description || 'Sin descripción'}
+                          </Text>
+                          <Text size="xs" color="$textLight500">
+                            {formatDate(debt.dueDate)}
+                          </Text>
+                        </VStack>
+                        <Text size="sm" fontWeight="$semibold" color={Colors.error}>
+                          {formatCurrency(debt.amount)}
+                        </Text>
+                      </HStack>
+                    </Box>
+                  </Pressable>
+                ))}
+              </VStack>
             </VStack>
 
-            <VStack space="xs">
-              <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                Descripción
-              </Text>
-              <Textarea borderRadius={8} borderColor="$borderLight300">
-                <TextareaInput
-                  placeholder="Describe el pago realizado..."
-                  value={description}
-                  onChangeText={setDescription}
-                />
-              </Textarea>
-            </VStack>
+            {/* Monto — solo visible si hay deuda seleccionada */}
+            {selectedDebt && (
+              <>
+                <Text size="xs" color={Colors.error}>
+                  Deuda seleccionada: {formatCurrency(selectedDebt.amount)}
+                </Text>
+
+                <VStack space="xs">
+                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                    Monto del Pago
+                  </Text>
+                  <Input borderRadius={8} borderColor="$borderLight300">
+                    <InputField
+                      placeholder="$0"
+                      value={amount}
+                      onChangeText={(text) => setAmount(formatAmount(text))}
+                      keyboardType="numeric"
+                    />
+                  </Input>
+                </VStack>
+
+                <VStack space="xs">
+                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                    Nota
+                  </Text>
+                  <Textarea borderRadius={8} borderColor="$borderLight300">
+                    <TextareaInput
+                      placeholder="Agregar nota de tu pago..."
+                      value={note}
+                      onChangeText={setNote}
+                    />
+                  </Textarea>
+                </VStack>
+              </>
+            )}
+
           </VStack>
         </ModalBody>
 
@@ -118,7 +189,8 @@ export default function RegisterPaymentModal({
               variant="outline"
               borderColor="$borderLight300"
               borderRadius={8}
-              onPress={onClose}
+              onPress={handleClose}
+              isDisabled={isLoading}
             >
               <ButtonText color={Colors.gray600}>Cancelar</ButtonText>
             </Button>
@@ -127,9 +199,11 @@ export default function RegisterPaymentModal({
               bg={Colors.success}
               borderRadius={8}
               onPress={handleSubmit}
-              isDisabled={!amount}
+              isDisabled={!amount || !selectedDebtId || isLoading} // 👈 requiere deuda seleccionada
             >
-              <ButtonText color={Colors.white}>Registrar</ButtonText>
+              <ButtonText color={Colors.white}>
+                {isLoading ? 'Registrando...' : 'Registrar'}
+              </ButtonText>
             </Button>
           </HStack>
         </ModalFooter>
