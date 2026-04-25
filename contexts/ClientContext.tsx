@@ -1,4 +1,3 @@
-import { useAuth } from "@/contexts/AuthContext";
 import api from "@/utils/api";
 import React, {
   createContext,
@@ -21,14 +20,26 @@ export interface Client {
   balance: number;
 }
 
+// ✅ Tipado del API
+interface ApiResponse<T> {
+  data: T;
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 interface ClientContextType {
   clients: Client[];
   addClient: (
     businessId: string,
     client: Omit<Client, "id" | "status" | "balance">,
   ) => void;
-  getClient: (id: string) => Client | undefined | Promise<Client | undefined>;
+  getClient: (clientId: string, businessId: string) => Promise<Client | undefined>;
   loadClientsByBusiness: (businessId: string) => Promise<void>;
+  loadAllClients: (businessIds: string[]) => Promise<void>;
   setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   clearClients: () => void;
 }
@@ -45,27 +56,22 @@ export const useClients = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [clients, setClients] = useState<Client[]>([]);
-  const { user } = useAuth();
-
-  // ✅ FIX: Usar ref para acceder a clients dentro de getClient sin que
-  // sea una dependencia del useCallback. Antes, getClient dependía de [clients]
-  // lo que lo recreaba en cada cambio de lista → nuevas referencias →
-  // re-renders en cascada → dispatchEvent en nodo null.
   const clientsRef = useRef<Client[]>(clients);
+
   useEffect(() => {
     clientsRef.current = clients;
   }, [clients]);
 
+  // POST /debtors — header: x-business-id
   const addClient = useCallback(
     async (
       businessId: string,
       clientData: Omit<Client, "id" | "status" | "balance">,
     ) => {
       try {
-        const response = await api.post(
-          `/business/${businessId}/debtors`,
-          clientData,
-        );
+        const response = await api.post(`/debtors`, clientData, {
+          headers: { "x-business-id": businessId },
+        });
         setClients((prev) => [...prev, response.data]);
       } catch (error) {
         console.error("Error creating client:", error);
@@ -74,28 +80,67 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  // ✅ Sin dependencias: usa clientsRef.current en lugar de clients directamente
-  const getClient = useCallback(async (id: string) => {
-    const local = clientsRef.current.find((c) => c.id === id);
+  // GET /debtors/:debtor_id — header: x-business-id
+  const getClient = useCallback(async (clientId: string, businessId: string) => {
+    const local = clientsRef.current.find((c) => c.id === clientId);
     if (local) return local;
+
     try {
-      const res = await api.get(`/debtors/${id}`);
+      const res = await api.get(`/debtors/${clientId}`, {
+        headers: { "x-business-id": businessId },
+      });
       return res.data as Client;
     } catch (error: any) {
       if (error?.response?.status === 404) {
-        console.warn(`Client not found for id ${id}`);
+        console.warn(`Client not found: ${clientId}`);
         return undefined;
       }
       throw error;
     }
-  }, []); // ✅ Estable: no se recrea nunca
+  }, []);
 
+  // GET /debtors — header: x-business-id (un solo negocio)
   const loadClientsByBusiness = useCallback(async (businessId: string) => {
     try {
-      const res = await api.get(`/business/${businessId}/debtors`);
-      setClients(res.data);
+      const res = await api.get<ApiResponse<Client[]>>(`/debtors`, {
+        headers: { "x-business-id": businessId },
+      });
+
+      const data = res.data?.data ?? [];
+      setClients(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error loading clients:", error);
+      console.error("Error loading clients by business:", error);
+    }
+  }, []);
+
+  // GET /debtors para múltiples negocios en paralelo, deduplica por id
+  const loadAllClients = useCallback(async (businessIds: string[]) => {
+    if (!businessIds.length) {
+      setClients([]);
+      return;
+    }
+
+    try {
+      const responses = await Promise.all(
+        businessIds.map((id) =>
+          api.get<ApiResponse<Client[]>>(`/debtors`, {
+            headers: { "x-business-id": id },
+          }),
+        ),
+      );
+
+      const merged: Client[] = responses.flatMap((r) =>
+        Array.isArray(r.data?.data) ? r.data.data : [],
+      );
+
+      const unique = Array.from(
+        new Map(merged.map((c) => [c.id, c])).values(),
+      );
+
+      setClients(unique);
+    } catch (error) {
+      console.error("Error loading all clients:", error);
+      setClients([]);
     }
   }, []);
 
@@ -107,10 +152,11 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
       addClient,
       getClient,
       loadClientsByBusiness,
+      loadAllClients,
       setClients,
       clearClients,
     }),
-    [clients, addClient, getClient, loadClientsByBusiness, clearClients],
+    [clients, addClient, getClient, loadClientsByBusiness, loadAllClients, clearClients],
   );
 
   return (

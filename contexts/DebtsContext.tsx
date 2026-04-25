@@ -30,8 +30,8 @@ export interface Debt {
 interface DebtsContextType {
   debts: Debt[];
   addDebt: (debt: AddDebts) => Promise<void>;
-  getDebtsByClient: (clientId: string) => Debt[];
-  loadDebtsByClient: (clientId: string) => Promise<void>;
+  getDebtsByClient: (clientId: string, businessId: string) => Debt[];
+  loadDebtsByClient: (clientId: string, businessId: string) => Promise<void>;
   setDebts: Dispatch<SetStateAction<Debt[]>>;
   clearDebts: () => void;
 }
@@ -51,16 +51,13 @@ export const DebtsProvider = ({ children }: { children: ReactNode }) => {
 
   const addDebt = useCallback(async (debtData: AddDebts): Promise<void> => {
     try {
-      console.log("BODY enviado a /debts:", JSON.stringify(debtData, null, 2));
+      const { businessId, ...body } = debtData;
 
-      await api.post("/debts", debtData, {
+      await api.post("/debts", body, {
         headers: {
-          "x-business-id": debtData.businessId,
+          "x-business-id": businessId,
         },
       });
-
-      // ✅ No actualizamos debts aquí — loadDebtsByClient se encarga
-      // de traer la lista completa y actualizada desde el servidor.
     } catch (error) {
       console.error("Error creating debt:", error);
       throw error;
@@ -74,12 +71,16 @@ export const DebtsProvider = ({ children }: { children: ReactNode }) => {
     [debts],
   );
 
-  const loadDebtsByClient = useCallback(async (clientId: string) => {
+  const loadDebtsByClient = useCallback(async (clientId: string, businessId: string) => {
     try {
-      const response = await api.get(`/debtors/${clientId}/debts`);
-      setDebts(response.data);
+      const response = await api.get(`/debtors/${clientId}/debts`, {
+        headers: { "x-business-id": businessId },
+      });
+      const data = response.data?.data ?? response.data;
+      setDebts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error loading debts:", error);
+      setDebts([]);
     }
   }, []);
 

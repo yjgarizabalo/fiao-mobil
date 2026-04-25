@@ -14,7 +14,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Pressable,
   Text,
   Textarea,
   TextareaInput,
@@ -23,69 +22,68 @@ import {
 import { useState } from 'react';
 import { Colors } from '../constants/Colors';
 
-interface Debt {
-  id: string;
-  amount: number;
-  description: string;
-  dueDate: string;
-}
-
 interface RegisterPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { debtId: string; amount: number; note: string }) => void; // 👈 incluye debtId
+  onSubmit: (data: { amount: number; note: string; method: string }) => void;
   clientName: string;
-  debts: Debt[]; // 👈 lista de deudas para el selector
+  currentBalance: number;
   isLoading?: boolean;
 }
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const METHODS = [
+  { key: 'CASH', label: 'Efectivo' },
+  { key: 'TRANSFER', label: 'Transferencia' },
+  { key: 'CARD', label: 'Tarjeta' },
+];
 
 export default function RegisterPaymentModal({
   isOpen,
   onClose,
   onSubmit,
   clientName,
-  debts,
+  currentBalance,
   isLoading = false,
 }: RegisterPaymentModalProps) {
-  const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null); // 👈 deuda seleccionada
+  const [method, setMethod] = useState<string>('CASH');
+  const [amountInput, setAmountInput] = useState('');
 
-  const selectedDebt = debts.find((d) => d.id === selectedDebtId) ?? null;
+  // Resolve the effective amount: typed value or full balance
+  const parsedAmount = amountInput ? Number(amountInput.replace(/\D/g, '')) : 0;
+  const effectiveAmount = parsedAmount > 0 ? parsedAmount : currentBalance;
+  const isPartial = parsedAmount > 0 && parsedAmount < currentBalance;
+  const exceedsBalance = parsedAmount > currentBalance;
+
+  const canSubmit = effectiveAmount > 0 && !exceedsBalance && !isLoading;
 
   const handleClose = () => {
-    setAmount('');
     setNote('');
-    setSelectedDebtId(null);
+    setAmountInput('');
+    setMethod('CASH');
     onClose();
   };
 
   const handleSubmit = () => {
-    const numAmount = parseFloat(amount.replace(/[^0-9]/g, ''));
-    if (numAmount > 0 && selectedDebtId) {
-      onSubmit({ debtId: selectedDebtId, amount: numAmount, note: note.trim() });
-      setAmount('');
-      setNote('');
-      setSelectedDebtId(null);
-      onClose();
-    }
+    if (!canSubmit) return;
+    onSubmit({
+      amount: effectiveAmount,
+      note: note.trim(),
+      method,
+    });
+    setNote('');
+    setAmountInput('');
+    setMethod('CASH');
+    onClose();
   };
-
-  const formatAmount = (value: string) => {
-    const numbers = value.replace(/[^0-9]/g, '');
-    return numbers ? `$${parseInt(numbers).toLocaleString()}` : '';
-  };
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('es-CO');
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
@@ -96,87 +94,124 @@ export default function RegisterPaymentModal({
             Registrar Pago
           </Text>
           <ModalCloseButton>
-            <Icon as={CloseIcon} color={Colors.gray400} />
+            <Icon as={CloseIcon} />
           </ModalCloseButton>
         </ModalHeader>
 
         <ModalBody py="$4">
           <VStack space="md">
 
-            <Text size="sm" color={Colors.gray600}>
-              Cliente: {clientName}
-            </Text>
+            {/* Client + balance summary */}
+            <Box
+              p="$4"
+              borderRadius={12}
+              bg="$backgroundLight50"
+              borderWidth={1}
+              borderColor="$borderLight200"
+            >
+              <VStack space="xs" alignItems="center">
+                <Text size="sm" color="$textLight500">
+                  Cliente
+                </Text>
+                <Text size="md" fontWeight="$semibold" color={Colors.primary}>
+                  {clientName}
+                </Text>
+                <Text size="xs" color="$textLight400" mt="$1">
+                  Saldo pendiente
+                </Text>
+                <Text size="2xl" fontWeight="$bold" color={Colors.error}>
+                  {formatCurrency(currentBalance)}
+                </Text>
+              </VStack>
+            </Box>
 
-            {/* 👈 Selector de deuda */}
+            {/* Amount input — optional, defaults to full balance */}
             <VStack space="xs">
               <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                Selecciona la deuda a pagar
+                Monto a pagar
               </Text>
-              <VStack space="xs">
-                {debts.map((debt) => (
-                  <Pressable key={debt.id} onPress={() => setSelectedDebtId(debt.id)}>
-                    <Box
-                      p="$3"
-                      borderRadius={8}
-                      borderWidth={1}
-                      borderColor={
-                        selectedDebtId === debt.id ? Colors.success : '$borderLight200'
-                      }
-                      bg={selectedDebtId === debt.id ? '$green50' : '$white'}
-                    >
-                      <HStack justifyContent="space-between" alignItems="center">
-                        <VStack flex={1}>
-                          <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                            {debt.description || 'Sin descripción'}
-                          </Text>
-                          <Text size="xs" color="$textLight500">
-                            {formatDate(debt.dueDate)}
-                          </Text>
-                        </VStack>
-                        <Text size="sm" fontWeight="$semibold" color={Colors.error}>
-                          {formatCurrency(debt.amount)}
-                        </Text>
-                      </HStack>
-                    </Box>
-                  </Pressable>
-                ))}
-              </VStack>
+              <Input borderRadius={8} borderColor="$borderLight300">
+                <InputField
+                  keyboardType="numeric"
+                  placeholder={`${formatCurrency(currentBalance)} (saldo completo)`}
+                  value={amountInput}
+                  onChangeText={(text) => setAmountInput(text.replace(/\D/g, ''))}
+                />
+              </Input>
+              {isPartial && (
+                <Text size="xs" color={Colors.warning ?? '$amber600'}>
+                  Abono parcial — quedará un saldo de{' '}
+                  {formatCurrency(currentBalance - parsedAmount)}
+                </Text>
+              )}
+              {exceedsBalance && (
+                <Text size="xs" color={Colors.error}>
+                  El monto no puede superar el saldo pendiente
+                </Text>
+              )}
             </VStack>
 
-            {/* Monto — solo visible si hay deuda seleccionada */}
-            {selectedDebt && (
-              <>
-                <Text size="xs" color={Colors.error}>
-                  Deuda seleccionada: {formatCurrency(selectedDebt.amount)}
-                </Text>
+            {/* Payment method */}
+            <VStack space="xs">
+              <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                Método de pago
+              </Text>
+              <HStack space="sm">
+                {METHODS.map((m) => (
+                  <Button
+                    key={m.key}
+                    flex={1}
+                    size="sm"
+                    h={36}
+                    borderRadius={8}
+                    variant={method === m.key ? 'solid' : 'outline'}
+                    bg={method === m.key ? Colors.primary : '$white'}
+                    borderColor={method === m.key ? Colors.primary : '$borderLight300'}
+                    onPress={() => setMethod(m.key)}
+                  >
+                    <ButtonText
+                      size="xs"
+                      color={method === m.key ? '$white' : Colors.primary}
+                    >
+                      {m.label}
+                    </ButtonText>
+                  </Button>
+                ))}
+              </HStack>
+            </VStack>
 
-                <VStack space="xs">
-                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                    Monto del Pago
-                  </Text>
-                  <Input borderRadius={8} borderColor="$borderLight300">
-                    <InputField
-                      placeholder="$0"
-                      value={amount}
-                      onChangeText={(text) => setAmount(formatAmount(text))}
-                      keyboardType="numeric"
-                    />
-                  </Input>
-                </VStack>
+            {/* Note */}
+            <VStack space="xs">
+              <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                Nota (opcional)
+              </Text>
+              <Textarea borderRadius={8} borderColor="$borderLight300">
+                <TextareaInput
+                  placeholder="Agregar nota del pago..."
+                  value={note}
+                  onChangeText={setNote}
+                />
+              </Textarea>
+            </VStack>
 
-                <VStack space="xs">
-                  <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                    Nota
+            {/* Confirm amount pill */}
+            {!exceedsBalance && (
+              <Box
+                p="$3"
+                borderRadius={8}
+                bg="$green50"
+                borderWidth={1}
+                borderColor="$green200"
+              >
+                <HStack justifyContent="space-between" alignItems="center">
+                  <Text size="sm" color={Colors.success} fontWeight="$medium">
+                    {isPartial ? 'Abono a registrar:' : 'Total a registrar:'}
                   </Text>
-                  <Textarea borderRadius={8} borderColor="$borderLight300">
-                    <TextareaInput
-                      placeholder="Agregar nota de tu pago..."
-                      value={note}
-                      onChangeText={setNote}
-                    />
-                  </Textarea>
-                </VStack>
-              </>
+                  <Text size="md" color={Colors.success} fontWeight="$bold">
+                    {formatCurrency(effectiveAmount)}
+                  </Text>
+                </HStack>
+              </Box>
             )}
 
           </VStack>
@@ -192,16 +227,16 @@ export default function RegisterPaymentModal({
               onPress={handleClose}
               isDisabled={isLoading}
             >
-              <ButtonText color={Colors.gray600}>Cancelar</ButtonText>
+              <ButtonText color="$textLight600">Cancelar</ButtonText>
             </Button>
             <Button
               flex={1}
               bg={Colors.success}
               borderRadius={8}
               onPress={handleSubmit}
-              isDisabled={!amount || !selectedDebtId || isLoading} // 👈 requiere deuda seleccionada
+              isDisabled={!canSubmit}
             >
-              <ButtonText color={Colors.white}>
+              <ButtonText color="$white">
                 {isLoading ? 'Registrando...' : 'Registrar'}
               </ButtonText>
             </Button>

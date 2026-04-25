@@ -39,7 +39,7 @@ export default function HomeScreen() {
             <Heading size="3xl" color={Colors.primary}>
               ¡Hola,{" "}
               <Text size="4xl" fontWeight="$bold" color="#2563eb">
-                Don {displayName}!
+                sr(a) {displayName}!
               </Text>
             </Heading>
             <Text size="md" color={Colors.gray400}>

@@ -1,3 +1,6 @@
+import Header from '@/components/Header';
+import { Colors } from '@/constants/Colors';
+import { useBusiness } from '@/contexts/BusinessContext';
 import {
   Box,
   Button,
@@ -12,9 +15,6 @@ import {
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
-import Header from '../../components/Header';
-import { Colors } from '../../constants/Colors';
-import { useBusiness } from '../../contexts/BusinessContext';
 
 
 export default function AddBusinessScreen() {

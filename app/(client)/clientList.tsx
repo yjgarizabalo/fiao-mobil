@@ -4,7 +4,6 @@ import { Colors } from "@/constants/Colors";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { Client, useClients } from "@/contexts/ClientContext";
 import { useDebts } from "@/contexts/DebtsContext";
-import api from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Avatar,
@@ -22,14 +21,18 @@ import {
   Text,
   VStack,
 } from "@gluestack-ui/themed";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
 export default function ClientScreen() {
+  const router = useRouter();
   const { businessId } = useLocalSearchParams();
-  const { businesses } = useBusiness();
-  const { clients, loadClientsByBusiness, clearClients, setClients } = useClients();
+  const { businesses: rawBusinesses } = useBusiness();
+  const { clients, loadClientsByBusiness, loadAllClients, clearClients, setClients } = useClients();
   const { addDebt } = useDebts();
+
+  // Garantizar que siempre sea un array, independiente de lo que devuelva el contexto
+  const businesses = Array.isArray(rawBusinesses) ? rawBusinesses : [];
 
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -41,9 +44,6 @@ export default function ClientScreen() {
   const hasBusinessFilter = typeof businessId === "string" && businessId.length > 0;
   const business = businesses.find((b) => b.id === businessId);
 
-  // ✅ FIX: Solo businessId y businesses.length como dependencias reales.
-  // Antes se incluían clearClients, loadClientsByBusiness y setClients que se
-  // recreaban en cada render causando un loop → dispatchEvent en nodo null.
   useEffect(() => {
     setLoading(true);
     clearClients();
@@ -59,34 +59,24 @@ export default function ClientScreen() {
       return;
     }
 
-    Promise.all(businesses.map((b) => api.get(`/business/${b.id}/debtors`)))
-      .then((responses) => {
-        const merged: Client[] = responses.flatMap((response) => response.data);
-        const unique = Array.from(
-          new Map(merged.map((client) => [client.id, client])).values(),
-        );
-        setClients(unique);
-      })
-      .catch((error) => {
-        console.error("Error loading all clients:", error);
-        setClients([]);
-      })
-      .finally(() => setLoading(false));
+    const businessIds = businesses.map((b) => b.id);
+    loadAllClients(businessIds).finally(() => setLoading(false));
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, businesses.length]);
 
   const normalizeText = (text: string) =>
     text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const filteredClients = clients.filter((client) =>
-    normalizeText(client.name).includes(normalizeText(searchText)),
+    normalizeText(client.name ?? "").includes(normalizeText(searchText)),
   );
 
-  const handleClientPress = (clientId: string) => {
-    router.navigate(`/(client)/clientDetail?id=${clientId}`);
+  const handleClientPress = (client: Client) => {
+    router.navigate(
+      `/(client)/clientDetail?id=${client.id}&businessId=${(client as any).businessId ?? businesses[0]?.id}` as any
+    );
   };
-
   const getStatusColor = (status: string) =>
     status === "al_dia" ? Colors.success : Colors.error;
 
@@ -99,13 +89,13 @@ export default function ClientScreen() {
     router.navigate({
       pathname: "/(client)/addClientCredit",
       params: { businessId: targetBusinessId },
-    });
+    } as any);
   };
 
-  const handleOpenDebtModal = (client: Client) => {
-    setSelectedClient(client);
-    setDebtModalOpen(true);
-  };
+  // const handleOpenDebtModal = (client: Client) => {
+  //   setSelectedClient(client);
+  //   setDebtModalOpen(true);
+  // };
 
   const handleCloseDebtModal = () => {
     setDebtModalOpen(false);
@@ -198,7 +188,7 @@ export default function ClientScreen() {
               elevation={0}
             >
               <HStack alignItems="center" justifyContent="space-between">
-                <Pressable flex={1} onPress={() => handleClientPress(client.id)}>
+                <Pressable flex={1} onPress={() => handleClientPress(client)}>
                   <HStack alignItems="center" space="md" flex={1}>
                     <Avatar size="md" bg={Colors.gray200} borderRadius="$full">
                       <AvatarFallbackText color={Colors.gray600}>
@@ -220,23 +210,23 @@ export default function ClientScreen() {
                 </Pressable>
 
                 <HStack alignItems="center" space="sm">
-                  <Pressable
+                  {/* <Pressable
                     onPress={() => handleOpenDebtModal(client)}
                     bg={Colors.error}
                     borderRadius={8}
                     px="$3"
                     py="$1"
                     $pressed={{ opacity: 0.8 }}
-                  >
-                    <HStack alignItems="center" space="xs">
+                  > */}
+                    {/* <HStack alignItems="center" space="xs">
                       <Ionicons name="add-circle-outline" size={16} color={Colors.white} />
                       <Text size="xs" color={Colors.white} fontWeight="$medium">
                         Deuda
                       </Text>
                     </HStack>
-                  </Pressable>
+                  </Pressable> */}
 
-                  <Pressable onPress={() => handleClientPress(client.id)}>
+                  <Pressable onPress={() => handleClientPress(client)}>
                     <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
                   </Pressable>
                 </HStack>

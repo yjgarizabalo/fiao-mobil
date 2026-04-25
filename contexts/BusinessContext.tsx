@@ -30,24 +30,34 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
 
   useEffect(() => {
-      if (!user) return;
+    if (!user) return;
 
-      const fetchBusinesses = async () => {
-        try {
-          const res = await api.get(`/business`);
-          setBusinesses(res.data);
-        } catch (error) {
-          console.error('Error loading businesses:', error);
-        }
-      };
+    const fetchBusinesses = async () => {
+      try {
+        const res = await api.get(`/business`);
 
-      fetchBusinesses();
-    }, [user]);
+        // La API devuelve paginado: { data: [...], total: N, page: N, limit: N }
+        // Normalizamos para soportar tanto array directo como objeto paginado
+        const raw = res.data;
+        const list: businesses[] = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.data)
+            ? raw.data
+            : [];
+
+        setBusinesses(list);
+      } catch (error) {
+        console.error('Error loading businesses:', error);
+        setBusinesses([]);
+      }
+    };
+
+    fetchBusinesses();
+  }, [user]);
 
   const addBusiness = async (businessData: Omit<businesses, 'id'>) => {
     try {
       const response = await api.post('/business', businessData);
-
       setBusinesses((prev) => [...prev, response.data]);
     } catch (error) {
       console.error('Error creating business:', error);

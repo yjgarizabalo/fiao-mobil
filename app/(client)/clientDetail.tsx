@@ -18,7 +18,7 @@ import {
   VStack,
 } from "@gluestack-ui/themed";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const toNumber = (value: string | number | undefined | null): number => {
   const parsed = Number(value);
@@ -26,15 +26,16 @@ const toNumber = (value: string | number | undefined | null): number => {
 };
 
 export default function CreditClientScreen() {
-  const { id } = useLocalSearchParams(); // id del cliente/deudor
+  const { id, businessId: businessIdParam } = useLocalSearchParams();
   const { getClient } = useClients();
   const { businesses } = useBusiness();
   const { addDebt, loadDebtsByClient, debts, clearDebts } = useDebts();
-  const { addPayment, loadPaymentsByClient, payments, clearPayments } = usePayments();
+  const { addGlobalPayment, loadAllPaymentsForClient, payments, clearPayments } = usePayments();
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
   const [client, setClient] = useState<any>(null);
+  const [businessId, setBusinessId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [addingDebt, setAddingDebt] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
@@ -50,13 +51,15 @@ export default function CreditClientScreen() {
       try {
         clearDebts();
         clearPayments();
-        const result = await getClient(id as string);
+
+        const resolvedBusinessId = (businessIdParam as string) ?? businesses[0]?.id;
+        const result = await getClient(id as string, resolvedBusinessId);
+
         if (cancelled) return;
         setClient(result ?? null);
-        await Promise.all([
-          loadDebtsByClient(id as string),
-          loadPaymentsByClient(id as string),
-        ]);
+        setBusinessId(resolvedBusinessId);
+
+        await loadDebtsByClient(id as string, resolvedBusinessId);
       } catch (error) {
         console.error("Error loading client detail:", error);
         if (!cancelled) setClient(null);
@@ -67,7 +70,47 @@ export default function CreditClientScreen() {
 
     load();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Once debts are loaded, fetch payments for all of them
+  useEffect(() => {
+    if (debts.length > 0 && businessId) {
+      loadAllPaymentsForClient(debts.map((d) => d.id), businessId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debts.length, businessId]);
+
+  // IDs of debts whose payments sum >= debt amount
+  const paidDebtIds = useMemo(() => {
+    return new Set(
+      debts
+        .filter((debt) => {
+          const paid = payments
+            .filter((p) => p.debtId === debt.id)
+            .reduce((sum, p) => sum + toNumber(p.amount), 0);
+          return paid >= toNumber(debt.amount);
+        })
+        .map((d) => d.id)
+    );
+  }, [debts, payments]);
+
+  const pendingDebts = useMemo(
+    () => debts.filter((d) => !paidDebtIds.has(d.id)),
+    [debts, paidDebtIds]
+  );
+
+  const totalDebts = useMemo(
+    () => debts.reduce((sum, d) => sum + toNumber(d.amount), 0),
+    [debts]
+  );
+
+  const totalPayments = useMemo(
+    () => payments.reduce((sum, p) => sum + toNumber(p.amount), 0),
+    [payments]
+  );
+
+  const currentBalance = Math.max(0, totalDebts - totalPayments);
 
   if (loading) {
     return (
@@ -85,29 +128,24 @@ export default function CreditClientScreen() {
     );
   }
 
-  const totalDebts = debts.reduce((sum, debt) => sum + toNumber(debt.amount), 0);
-  const totalPayments = payments.reduce((sum, p) => sum + toNumber(p.amount), 0);
-  const currentBalance = totalDebts - totalPayments;
-
   const handleRegisterPayment = () => setIsPaymentModalOpen(true);
   const handleAddDebt = () => setIsDebtModalOpen(true);
 
-  // 👈 onSubmit ahora recibe debtId desde el modal (el usuario lo seleccionó)
-  const handlePaymentSubmit = async (data: { debtId: string; amount: number; note: string }) => {
-    const businessId = client.businessId ?? businesses[0]?.id;
+  const handlePaymentSubmit = async (data: { amount: number; note: string; method: string }) => {
     if (!businessId) return;
 
     setAddingPayment(true);
     try {
-      await addPayment({
+      await addGlobalPayment({
         businessId,
-        debtId: data.debtId, // ✅ id real de la deuda, viene del selector del modal
-        amount: data.amount,
-        method: "CASH",
-        type: "PAYMENT",
+        debtorId: id as string,
+        amount: toNumber(data.amount),
+        method: data.method,
         note: data.note,
       });
-      await loadPaymentsByClient(id as string);
+      // Reload debts first, then reload payments for all debt IDs
+      await loadDebtsByClient(id as string, businessId);
+      await loadAllPaymentsForClient(debts.map((d) => d.id), businessId);
     } catch (error) {
       console.error("Error al registrar pago:", error);
     } finally {
@@ -116,7 +154,6 @@ export default function CreditClientScreen() {
   };
 
   const handleDebtSubmit = async (data: { amount: number; description: string }) => {
-    const businessId = client.businessId ?? businesses[0]?.id;
     if (!businessId) return;
 
     setAddingDebt(true);
@@ -128,7 +165,7 @@ export default function CreditClientScreen() {
         description: data.description,
         dueDate: new Date().toISOString(),
       });
-      await loadDebtsByClient(id as string);
+      await loadDebtsByClient(id as string, businessId);
     } catch (error) {
       console.error("Error al agregar deuda:", error);
     } finally {
@@ -152,7 +189,6 @@ export default function CreditClientScreen() {
       <Header title={client.name} showBack />
 
       <Box p="$4">
-        {/* Card de saldo */}
         <Card
           p="$4"
           bg="$white"
@@ -173,14 +209,13 @@ export default function CreditClientScreen() {
             </Heading>
             <Text size="xs" color="$textLight400">
               {currentBalance > 0
-                ? `${debts.length} ${debts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
-                : "Al día"}
+                ? `${pendingDebts.length} ${pendingDebts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
+                : "Al día ✓"}
             </Text>
           </VStack>
         </Card>
 
         <HStack space="md" mb="$4">
-          {/* 👈 Botón Registrar Pago — abre modal con selector de deuda */}
           <Button
             flex={1}
             size="md"
@@ -188,7 +223,7 @@ export default function CreditClientScreen() {
             borderRadius={12}
             bg={Colors.success}
             onPress={handleRegisterPayment}
-            isDisabled={addingPayment || debts.length === 0}
+            isDisabled={addingPayment || currentBalance === 0}
           >
             <ButtonText color={Colors.white} size="sm">
               {addingPayment ? "Registrando..." : "Registrar Pago"}
@@ -232,7 +267,6 @@ export default function CreditClientScreen() {
             </Card>
           ) : (
             <>
-              {/* Deudas */}
               {debts.map((debt) => (
                 <Card
                   key={`debt-${debt.id}`}
@@ -245,7 +279,12 @@ export default function CreditClientScreen() {
                   <HStack alignItems="center" justifyContent="space-between">
                     <VStack flex={1}>
                       <HStack alignItems="center" space="xs">
-                        <Box w={8} h={8} borderRadius="$full" bg={Colors.error} />
+                        <Box
+                          w={8}
+                          h={8}
+                          borderRadius="$full"
+                          bg={paidDebtIds.has(debt.id) ? Colors.success : Colors.error}
+                        />
                         <Text size="sm" fontWeight="$medium" color={Colors.primary}>
                           {debt.description || "Sin descripción"}
                         </Text>
@@ -253,6 +292,11 @@ export default function CreditClientScreen() {
                       <Text size="xs" color="$textLight500">
                         {formatDate(debt.dueDate)}
                       </Text>
+                      {paidDebtIds.has(debt.id) && (
+                        <Text size="xs" color={Colors.success}>
+                          Pagada ✓
+                        </Text>
+                      )}
                     </VStack>
                     <Text size="md" fontWeight="$semibold" color={Colors.error}>
                       +{formatCurrency(toNumber(debt.amount))}
@@ -261,7 +305,6 @@ export default function CreditClientScreen() {
                 </Card>
               ))}
 
-              {/* Pagos */}
               {payments.map((payment) => (
                 <Card
                   key={`payment-${payment.id}`}
@@ -294,13 +337,12 @@ export default function CreditClientScreen() {
         </VStack>
       </ScrollView>
 
-      {/* 👈 Modal recibe debts para el selector interno */}
       <RegisterPaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onSubmit={handlePaymentSubmit}
         clientName={client.name}
-        debts={debts} // 👈 pasa todas las deudas al modal
+        currentBalance={currentBalance}
         isLoading={addingPayment}
       />
 

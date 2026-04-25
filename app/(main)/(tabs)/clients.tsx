@@ -4,7 +4,6 @@ import { Colors } from "@/constants/Colors";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { Client, useClients } from "@/contexts/ClientContext";
 import { useDebts } from "@/contexts/DebtsContext";
-import api from "@/utils/api";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Avatar,
@@ -29,9 +28,12 @@ const normalizeText = (text: string) =>
   text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 export default function DebtorsTab() {
-  const { businesses } = useBusiness();
-  const { clients, setClients, clearClients } = useClients();
+  const { businesses: rawBusinesses } = useBusiness();
+  const { clients, setClients, clearClients, loadAllClients } = useClients();
   const { addDebt } = useDebts();
+
+  // Garantizar que siempre sea un array, independiente de lo que devuelva el contexto
+  const businesses = Array.isArray(rawBusinesses) ? rawBusinesses : [];
 
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -50,25 +52,14 @@ export default function DebtorsTab() {
     setLoading(true);
     clearClients();
 
-    Promise.all(businesses.map((b) => api.get(`/business/${b.id}/debtors`)))
-      .then((responses) => {
-        const merged: Client[] = responses.flatMap((r) => r.data);
-        const unique = Array.from(
-          new Map(merged.map((c) => [c.id, c])).values(),
-        );
-        setClients(unique);
-      })
-      .catch((error) => {
-        console.error("Error loading clients:", error);
-        setClients([]);
-      })
-      .finally(() => setLoading(false));
+    const businessIds = businesses.map((b) => b.id);
+    loadAllClients(businessIds).finally(() => setLoading(false));
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businesses.length]);
 
-  const filteredClients = clients.filter((c) =>
-    normalizeText(c.name).includes(normalizeText(searchText)),
+  const filteredClients = clients.filter((client) =>
+    normalizeText(client.name ?? "").includes(normalizeText(searchText)),
   );
 
   const getStatusColor = (status: string) =>
@@ -89,10 +80,10 @@ export default function DebtorsTab() {
     router.navigate(`/(client)/clientDetail?id=${clientId}`);
   };
 
-  const handleOpenDebtModal = (client: Client) => {
-    setSelectedClient(client);
-    setDebtModalOpen(true);
-  };
+  // const handleOpenDebtModal = (client: Client) => {
+  //   setSelectedClient(client);
+  //   setDebtModalOpen(true);
+  // };
 
   const handleCloseDebtModal = () => {
     setDebtModalOpen(false);
@@ -200,7 +191,7 @@ export default function DebtorsTab() {
                 </Pressable>
 
                 <HStack alignItems="center" space="sm">
-                  <Pressable
+                  {/* <Pressable
                     onPress={() => handleOpenDebtModal(client)}
                     bg={Colors.error}
                     borderRadius={8}
@@ -214,7 +205,7 @@ export default function DebtorsTab() {
                         Deuda
                       </Text>
                     </HStack>
-                  </Pressable>
+                  </Pressable> */}
 
                   <Pressable onPress={() => handleClientPress(client.id)}>
                     <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />

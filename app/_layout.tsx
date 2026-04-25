@@ -15,8 +15,9 @@ export default function RootLayout() {
   return (
     <GluestackUIProvider config={config}>
       <AuthProvider>
-        <ClientProvider>
-          <BusinessProvider>
+        <BusinessProvider>
+          <ClientProvider>
+
             <DebtsProvider>
               <PaymentProvider>
                 <Stack screenOptions={{ headerShown: false }}>
@@ -28,9 +29,9 @@ export default function RootLayout() {
                 </Stack>
               </PaymentProvider>
             </DebtsProvider>
-          </BusinessProvider>
-          <StatusBar style="auto" />
-        </ClientProvider>
+            <StatusBar style="auto" />
+          </ClientProvider>
+        </BusinessProvider>
       </AuthProvider>
     </GluestackUIProvider>
   );
