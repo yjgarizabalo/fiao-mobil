@@ -185,7 +185,7 @@ export default function RegisterPaymentModal({
               <Text size="sm" fontWeight="$medium" color={Colors.primary}>
                 Nota (opcional)
               </Text>
-              <Textarea borderRadius={8} borderColor="$borderLight300">
+              <Textarea borderRadius={8} size="sm" borderColor="$borderLight300">
                 <TextareaInput
                   placeholder="Agregar nota del pago..."
                   value={note}

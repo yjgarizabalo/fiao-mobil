@@ -112,6 +112,21 @@ export default function CreditClientScreen() {
 
   const currentBalance = Math.max(0, totalDebts - totalPayments);
 
+  // Merge debts + payments sorted by date descending (most recent first)
+  const sortedMovements = useMemo(() => {
+    const debtItems = debts.map((d) => ({
+      type: "debt" as const,
+      date: new Date(d.dueDate).getTime(),
+      data: d,
+    }));
+    const paymentItems = payments.map((p) => ({
+      type: "payment" as const,
+      date: new Date(p.createdAt ?? 0).getTime(),
+      data: p,
+    }));
+    return [...debtItems, ...paymentItems].sort((a, b) => b.date - a.date);
+  }, [debts, payments]);
+
   if (loading) {
     return (
       <Box flex={1} justifyContent="center" alignItems="center">
@@ -189,31 +204,145 @@ export default function CreditClientScreen() {
       <Header title={client.name} showBack />
 
       <Box p="$4">
-        <Card
-          p="$4"
-          bg="$white"
-          borderRadius={12}
-          borderWidth={1}
-          borderColor="$borderLight200"
+        {/* ── Balance Card ── */}
+        <Box
           mb="$4"
+          borderRadius={20}
+          overflow="hidden"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.22,
+            shadowRadius: 14,
+            elevation: 8,
+          }}
         >
-          <VStack space="sm" alignItems="center">
-            <Text size="sm" color="$textLight500">
-              Saldo Actual
+          {/* Dark header with balance */}
+          <Box
+            px="$5"
+            pt="$5"
+            pb="$4"
+            style={{ backgroundColor: currentBalance > 0 ? "#16101a" : "#0d1f16" }}
+          >
+            {/* Status pill */}
+            <Box
+              alignSelf="flex-start"
+              px="$3"
+              py="$1"
+              mb="$3"
+              borderRadius={20}
+              style={{
+                backgroundColor: currentBalance > 0
+                  ? "rgba(248,113,113,0.15)"
+                  : "rgba(74,222,128,0.15)",
+              }}
+            >
+              <Text
+                size="xs"
+                fontWeight="$bold"
+                style={{
+                  color: currentBalance > 0 ? "#f87171" : "#4ade80",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {currentBalance > 0
+                  ? `● ${pendingDebts.length} ${pendingDebts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
+                  : "● Al día"}
+              </Text>
+            </Box>
+
+            {/* Label */}
+            <Text
+              size="xs"
+              mb="$1"
+              style={{ color: "rgba(255,255,255,0.45)", letterSpacing: 0.6 }}
+            >
+              SALDO ACTUAL
             </Text>
+
+            {/* Main balance figure */}
             <Heading
-              size="2xl"
-              color={currentBalance > 0 ? Colors.error : Colors.success}
+              size="3xl"
+              style={{ color: currentBalance > 0 ? "#f87171" : "#4ade80" }}
             >
               {formatCurrency(currentBalance)}
             </Heading>
-            <Text size="xs" color="$textLight400">
-              {currentBalance > 0
-                ? `${pendingDebts.length} ${pendingDebts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
-                : "Al día ✓"}
-            </Text>
-          </VStack>
-        </Card>
+          </Box>
+
+          {/* Progress bar strip */}
+          {totalDebts > 0 && (
+            <Box style={{ backgroundColor: "#0d0d0d" }} px="$5" py="$2">
+              <HStack justifyContent="space-between" mb="$1">
+                <Text size="xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  Pagado
+                </Text>
+                <Text size="xs" fontWeight="$semibold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {Math.min(100, Math.round((totalPayments / totalDebts) * 100))}%
+                </Text>
+              </HStack>
+              {/* Track */}
+              <Box
+                h={5}
+                borderRadius={4}
+                style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+              >
+                {/* Fill */}
+                <Box
+                  h={5}
+                  borderRadius={4}
+                  style={{
+                    width: `${Math.min(100, (totalPayments / totalDebts) * 100).toFixed(1)}%` as `${number}%`,
+                    backgroundColor: "#4ade80",
+                  }}
+                />
+              </Box>
+            </Box>
+          )}
+
+          {/* Stats row */}
+          <Box
+            px="$5"
+            pt="$3"
+            pb="$4"
+            style={{ backgroundColor: "#111111" }}
+          >
+            <HStack justifyContent="space-between">
+              <VStack space="xs">
+                <Text size="xs" style={{ color: "rgba(255,255,255,0.38)", letterSpacing: 0.5 }}>
+                  DEUDAS
+                </Text>
+                <Text size="sm" fontWeight="$bold" style={{ color: "#f87171" }}>
+                  {formatCurrency(totalDebts)}
+                </Text>
+              </VStack>
+
+              {/* Divider */}
+              <Box w={1} style={{ backgroundColor: "rgba(255,255,255,0.08)" }} />
+
+              <VStack space="xs" alignItems="center">
+                <Text size="xs" style={{ color: "rgba(255,255,255,0.38)", letterSpacing: 0.5 }}>
+                  DEUDAS TOTAL
+                </Text>
+                <Text size="sm" fontWeight="$bold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  {debts.length}
+                </Text>
+              </VStack>
+
+              {/* Divider */}
+              <Box w={1} style={{ backgroundColor: "rgba(255,255,255,0.08)" }} />
+
+              <VStack space="xs" alignItems="flex-end">
+                <Text size="xs" style={{ color: "rgba(255,255,255,0.38)", letterSpacing: 0.5 }}>
+                  PAGADO
+                </Text>
+                <Text size="sm" fontWeight="$bold" style={{ color: "#4ade80" }}>
+                  {formatCurrency(totalPayments)}
+                </Text>
+              </VStack>
+            </HStack>
+          </Box>
+        </Box>
 
         <HStack space="md" mb="$4">
           <Button
@@ -267,71 +396,77 @@ export default function CreditClientScreen() {
             </Card>
           ) : (
             <>
-              {debts.map((debt) => (
-                <Card
-                  key={`debt-${debt.id}`}
-                  p="$3"
-                  bg="$white"
-                  borderRadius={8}
-                  borderWidth={1}
-                  borderColor="$borderLight200"
-                >
-                  <HStack alignItems="center" justifyContent="space-between">
-                    <VStack flex={1}>
-                      <HStack alignItems="center" space="xs">
-                        <Box
-                          w={8}
-                          h={8}
-                          borderRadius="$full"
-                          bg={paidDebtIds.has(debt.id) ? Colors.success : Colors.error}
-                        />
-                        <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                          {debt.description || "Sin descripción"}
+              {sortedMovements.map((item) => {
+                if (item.type === "debt") {
+                  const debt = item.data;
+                  return (
+                    <Card
+                      key={`debt-${debt.id}`}
+                      p="$3"
+                      bg="$white"
+                      borderRadius={8}
+                      borderWidth={1}
+                      borderColor="$borderLight200"
+                    >
+                      <HStack alignItems="center" justifyContent="space-between">
+                        <VStack flex={1}>
+                          <HStack alignItems="center" space="xs">
+                            <Box
+                              w={8}
+                              h={8}
+                              borderRadius="$full"
+                              bg={paidDebtIds.has(debt.id) ? Colors.success : Colors.error}
+                            />
+                            <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                              {debt.description || "Sin descripción"}
+                            </Text>
+                          </HStack>
+                          <Text size="xs" color="$textLight500">
+                            {formatDate(debt.dueDate)}
+                          </Text>
+                          {paidDebtIds.has(debt.id) && (
+                            <Text size="xs" color={Colors.success}>
+                              Pagada ✓
+                            </Text>
+                          )}
+                        </VStack>
+                        <Text size="md" fontWeight="$semibold" color={Colors.error}>
+                          +{formatCurrency(toNumber(debt.amount))}
                         </Text>
                       </HStack>
-                      <Text size="xs" color="$textLight500">
-                        {formatDate(debt.dueDate)}
-                      </Text>
-                      {paidDebtIds.has(debt.id) && (
-                        <Text size="xs" color={Colors.success}>
-                          Pagada ✓
-                        </Text>
-                      )}
-                    </VStack>
-                    <Text size="md" fontWeight="$semibold" color={Colors.error}>
-                      +{formatCurrency(toNumber(debt.amount))}
-                    </Text>
-                  </HStack>
-                </Card>
-              ))}
+                    </Card>
+                  );
+                }
 
-              {payments.map((payment) => (
-                <Card
-                  key={`payment-${payment.id}`}
-                  p="$3"
-                  bg="$white"
-                  borderRadius={8}
-                  borderWidth={1}
-                  borderColor="$borderLight200"
-                >
-                  <HStack alignItems="center" justifyContent="space-between">
-                    <VStack flex={1}>
-                      <HStack alignItems="center" space="xs">
-                        <Box w={8} h={8} borderRadius="$full" bg={Colors.success} />
-                        <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                          {payment.note || "Pago registrado"}
+                const payment = item.data;
+                return (
+                  <Card
+                    key={`payment-${payment.id}`}
+                    p="$3"
+                    bg="$white"
+                    borderRadius={8}
+                    borderWidth={1}
+                    borderColor="$borderLight200"
+                  >
+                    <HStack alignItems="center" justifyContent="space-between">
+                      <VStack flex={1}>
+                        <HStack alignItems="center" space="xs">
+                          <Box w={8} h={8} borderRadius="$full" bg={Colors.success} />
+                          <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                            {payment.note || "Pago registrado"}
+                          </Text>
+                        </HStack>
+                        <Text size="xs" color="$textLight500">
+                          {payment.method}
                         </Text>
-                      </HStack>
-                      <Text size="xs" color="$textLight500">
-                        {payment.method}
+                      </VStack>
+                      <Text size="md" fontWeight="$semibold" color={Colors.success}>
+                        -{formatCurrency(toNumber(payment.amount))}
                       </Text>
-                    </VStack>
-                    <Text size="md" fontWeight="$semibold" color={Colors.success}>
-                      -{formatCurrency(toNumber(payment.amount))}
-                    </Text>
-                  </HStack>
-                </Card>
-              ))}
+                    </HStack>
+                  </Card>
+                );
+              })}
             </>
           )}
         </VStack>
