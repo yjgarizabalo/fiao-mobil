@@ -23,15 +23,20 @@ export interface Debt {
   businessId: string;
   debtorId: string;
   amount: number;
+  remainingAmount: number;
   description: string;
   dueDate: string;
 }
 
+export type DebtsMap = Record<string, Debt[]>;
+
 interface DebtsContextType {
   debts: Debt[];
+  debtsMap: DebtsMap;
   addDebt: (debt: AddDebts) => Promise<void>;
-  getDebtsByClient: (clientId: string, businessId: string) => Debt[];
+  getDebtsByClient: (clientId: string) => Debt[];
   loadDebtsByClient: (clientId: string, businessId: string) => Promise<void>;
+  loadDebtsByClients: (clients: { id: string; businessId: string }[]) => Promise<void>;
   setDebts: Dispatch<SetStateAction<Debt[]>>;
   clearDebts: () => void;
 }
@@ -48,15 +53,13 @@ export const useDebts = () => {
 
 export const DebtsProvider = ({ children }: { children: ReactNode }) => {
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtsMap, setDebtsMap] = useState<DebtsMap>({});
 
   const addDebt = useCallback(async (debtData: AddDebts): Promise<void> => {
     try {
       const { businessId, ...body } = debtData;
-
       await api.post("/debts", body, {
-        headers: {
-          "x-business-id": businessId,
-        },
+        headers: { "x-business-id": businessId },
       });
     } catch (error) {
       console.error("Error creating debt:", error);
@@ -84,20 +87,60 @@ export const DebtsProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const loadDebtsByClients = useCallback(
+    async (clients: { id: string; businessId: string }[]) => {
+      if (!clients.length) {
+        setDebtsMap({});
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        clients.map(({ id, businessId }) =>
+          api
+            .get(`/debtors/${id}/debts`, {
+              headers: { "x-business-id": businessId },
+            })
+            .then((res) => ({
+              clientId: id,
+              debts: (() => {
+                const data = res.data?.data ?? res.data;
+                return Array.isArray(data) ? (data as Debt[]) : [];
+              })(),
+            }))
+        )
+      );
+
+      const newEntries: DebtsMap = {};
+      results.forEach((result) => {
+        if (result.status === "fulfilled") {
+          newEntries[result.value.clientId] = result.value.debts;
+        }
+      });
+
+      // MERGE en lugar de reemplazar: conserva entradas de páginas anteriores
+      // para que clientes de otras páginas no pierdan su estado en el mapa.
+      setDebtsMap((prev) => ({ ...prev, ...newEntries }));
+    },
+    []
+  );
+
   const clearDebts = useCallback(() => {
     setDebts([]);
+    setDebtsMap({});
   }, []);
 
   const value = useMemo(
     () => ({
       debts,
+      debtsMap,
       addDebt,
       getDebtsByClient,
       loadDebtsByClient,
+      loadDebtsByClients,
       setDebts,
       clearDebts,
     }),
-    [debts, addDebt, getDebtsByClient, loadDebtsByClient, clearDebts],
+    [debts, debtsMap, addDebt, getDebtsByClient, loadDebtsByClient, loadDebtsByClients, clearDebts],
   );
 
   return (

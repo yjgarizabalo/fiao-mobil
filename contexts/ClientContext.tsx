@@ -18,28 +18,32 @@ export interface Client {
   phone: string;
   status: "al_dia" | "debe";
   balance: number;
+  businessId?: string;
 }
 
-// ✅ Tipado del API
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 interface ApiResponse<T> {
   data: T;
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
+  meta: PaginationMeta;
 }
 
 interface ClientContextType {
   clients: Client[];
+  pagination: PaginationMeta | null;
   addClient: (
     businessId: string,
     client: Omit<Client, "id" | "status" | "balance">,
   ) => void;
   getClient: (clientId: string, businessId: string) => Promise<Client | undefined>;
+  refreshClient: (clientId: string, businessId: string) => Promise<Client | undefined>;
   loadClientsByBusiness: (businessId: string) => Promise<void>;
-  loadAllClients: (businessIds: string[]) => Promise<void>;
+  loadAllClients: (page?: number, limit?: number) => Promise<void>;
   setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   clearClients: () => void;
 }
@@ -56,13 +60,13 @@ export const useClients = () => {
 
 export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const [clients, setClients] = useState<Client[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const clientsRef = useRef<Client[]>(clients);
 
   useEffect(() => {
     clientsRef.current = clients;
   }, [clients]);
 
-  // POST /debtors — header: x-business-id
   const addClient = useCallback(
     async (
       businessId: string,
@@ -80,8 +84,8 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  // GET /debtors/:debtor_id — header: x-business-id
   const getClient = useCallback(async (clientId: string, businessId: string) => {
+    // Usa caché local para evitar llamada extra si ya tenemos el cliente
     const local = clientsRef.current.find((c) => c.id === clientId);
     if (local) return local;
 
@@ -99,64 +103,79 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // GET /debtors — header: x-business-id (un solo negocio)
+  const refreshClient = useCallback(async (clientId: string, businessId: string) => {
+    try {
+      const res = await api.get(`/debtors/${clientId}`, {
+        headers: { "x-business-id": businessId },
+      });
+      const fresh = res.data as Client;
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? fresh : c)),
+      );
+      return fresh;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        console.warn(`Client not found: ${clientId}`);
+        return undefined;
+      }
+      throw error;
+    }
+  }, []);
+
   const loadClientsByBusiness = useCallback(async (businessId: string) => {
     try {
       const res = await api.get<ApiResponse<Client[]>>(`/debtors`, {
         headers: { "x-business-id": businessId },
       });
+      const raw: Client[] = res.data?.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
 
-      const data = res.data?.data ?? [];
-      setClients(Array.isArray(data) ? data : []);
+      if (res.data?.meta) setPagination(res.data.meta);
+
+      // Inyectar businessId en cada cliente para que debtsMap pueda hidratar
+      const withBusinessId = data.map((c) => ({ ...c, businessId }));
+      setClients(withBusinessId);
     } catch (error) {
       console.error("Error loading clients by business:", error);
     }
   }, []);
 
-  // GET /debtors para múltiples negocios en paralelo, deduplica por id
-  const loadAllClients = useCallback(async (businessIds: string[]) => {
-    if (!businessIds.length) {
-      setClients([]);
-      return;
-    }
-
+  const loadAllClients = useCallback(async (page = 1, limit = 10) => {
     try {
-      const responses = await Promise.all(
-        businessIds.map((id) =>
-          api.get<ApiResponse<Client[]>>(`/debtors`, {
-            headers: { "x-business-id": id },
-          }),
-        ),
-      );
+      const res = await api.get<ApiResponse<Client[]>>(`/debtors/me/all`, {
+        params: { page, limit },
+      });
+      const raw: Client[] = res.data?.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
 
-      const merged: Client[] = responses.flatMap((r) =>
-        Array.isArray(r.data?.data) ? r.data.data : [],
-      );
+      if (res.data?.meta) setPagination(res.data.meta);
 
-      const unique = Array.from(
-        new Map(merged.map((c) => [c.id, c])).values(),
-      );
-
-      setClients(unique);
+      setClients(data);
     } catch (error) {
       console.error("Error loading all clients:", error);
       setClients([]);
+      setPagination(null);
     }
   }, []);
 
-  const clearClients = useCallback(() => setClients([]), []);
+  const clearClients = useCallback(() => {
+    setClients([]);
+    setPagination(null);
+  }, []);
 
   const value = useMemo(
     () => ({
       clients,
+      pagination,
       addClient,
       getClient,
+      refreshClient,
       loadClientsByBusiness,
       loadAllClients,
       setClients,
       clearClients,
     }),
-    [clients, addClient, getClient, loadClientsByBusiness, loadAllClients, clearClients],
+    [clients, pagination, addClient, getClient, refreshClient, loadClientsByBusiness, loadAllClients, clearClients],
   );
 
   return (

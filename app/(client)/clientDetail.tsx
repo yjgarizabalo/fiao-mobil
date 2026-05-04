@@ -6,6 +6,7 @@ import { useBusiness } from "@/contexts/BusinessContext";
 import { useClients } from "@/contexts/ClientContext";
 import { useDebts } from "@/contexts/DebtsContext";
 import { usePayments } from "@/contexts/PaymentsContext";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Box,
   Button,
@@ -13,6 +14,7 @@ import {
   Card,
   HStack,
   Heading,
+  Pressable,
   ScrollView,
   Text,
   VStack,
@@ -25,12 +27,14 @@ const toNumber = (value: string | number | undefined | null): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+const MOVEMENTS_LIMIT = 15;
+
 export default function CreditClientScreen() {
   const { id, businessId: businessIdParam } = useLocalSearchParams();
-  const { getClient } = useClients();
+  const { getClient, refreshClient } = useClients();
   const { businesses } = useBusiness();
   const { addDebt, loadDebtsByClient, debts, clearDebts } = useDebts();
-  const { addGlobalPayment, loadAllPaymentsForClient, payments, clearPayments } = usePayments();
+  const { addGlobalPayment, addGlobalPaymentSummary, loadAllPaymentsForClient, payments, clearPayments } = usePayments();
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
@@ -39,7 +43,9 @@ export default function CreditClientScreen() {
   const [loading, setLoading] = useState(true);
   const [addingDebt, setAddingDebt] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
+  const [movementsPage, setMovementsPage] = useState(1);
 
+  // ── Carga inicial: cliente → deudas → pagos ──────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -53,12 +59,15 @@ export default function CreditClientScreen() {
         clearPayments();
 
         const resolvedBusinessId = (businessIdParam as string) ?? businesses[0]?.id;
+
+        // getClient usa caché local en la carga inicial (rápido)
         const result = await getClient(id as string, resolvedBusinessId);
 
         if (cancelled) return;
         setClient(result ?? null);
         setBusinessId(resolvedBusinessId);
 
+        // Cargar deudas — el useEffect de debts disparará la carga de pagos
         await loadDebtsByClient(id as string, resolvedBusinessId);
       } catch (error) {
         console.error("Error loading client detail:", error);
@@ -73,21 +82,28 @@ export default function CreditClientScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Once debts are loaded, fetch payments for all of them
+  // ── Cuando debts cambia, recargar pagos ──────────────────────────────────
+  // Se dispara tanto en la carga inicial como después de agregar una deuda nueva.
+  // Para pagos globales, la recarga se hace explícitamente en handlePaymentSubmit
+  // porque debts.length no cambia en ese caso.
   useEffect(() => {
     if (debts.length > 0 && businessId) {
       loadAllPaymentsForClient(debts.map((d) => d.id), businessId);
     }
+    if (debts.length === 0 && businessId) {
+      clearPayments();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debts.length, businessId]);
 
-  // IDs of debts whose payments sum >= debt amount
+  // ── Cálculos derivados ────────────────────────────────────────────────────
   const paidDebtIds = useMemo(() => {
     return new Set(
       debts
         .filter((debt) => {
+          // Excluir pagos sintéticos globales (no tienen debtId real)
           const paid = payments
-            .filter((p) => p.debtId === debt.id)
+            .filter((p) => !(p as any).isGlobalSummary && p.debtId === debt.id)
             .reduce((sum, p) => sum + toNumber(p.amount), 0);
           return paid >= toNumber(debt.amount);
         })
@@ -95,24 +111,31 @@ export default function CreditClientScreen() {
     );
   }, [debts, payments]);
 
-  const pendingDebts = useMemo(
-    () => debts.filter((d) => !paidDebtIds.has(d.id)),
-    [debts, paidDebtIds]
-  );
-
   const totalDebts = useMemo(
     () => debts.reduce((sum, d) => sum + toNumber(d.amount), 0),
     [debts]
   );
 
   const totalPayments = useMemo(
-    () => payments.reduce((sum, p) => sum + toNumber(p.amount), 0),
+    () => payments
+      .filter((p) => !(p as any).isGlobalSummary)
+      .reduce((sum, p) => sum + toNumber(p.amount), 0),
     [payments]
   );
 
-  const currentBalance = Math.max(0, totalDebts - totalPayments);
+  // Balance: fuente de verdad es el backend (client.balance).
+  // IMPORTANTE: distinguir balance=0 (cliente al día) de balance=undefined (aún no hay dato).
+  // El fallback local solo aplica cuando el campo no existe en el objeto cliente.
+  const currentBalance = (() => {
+    const serverBalance = client?.balance;
+    if (serverBalance !== undefined && serverBalance !== null) {
+      // El backend mandó un valor — puede ser 0 (al día) o positivo (debe)
+      return Math.max(0, toNumber(serverBalance));
+    }
+    // No hay dato del backend todavía: calcular localmente
+    return Math.max(0, totalDebts - totalPayments);
+  })();
 
-  // Merge debts + payments sorted by date descending (most recent first)
   const sortedMovements = useMemo(() => {
     const debtItems = debts.map((d) => ({
       type: "debt" as const,
@@ -127,22 +150,7 @@ export default function CreditClientScreen() {
     return [...debtItems, ...paymentItems].sort((a, b) => b.date - a.date);
   }, [debts, payments]);
 
-  if (loading) {
-    return (
-      <Box flex={1} justifyContent="center" alignItems="center">
-        <Text>Cargando cliente...</Text>
-      </Box>
-    );
-  }
-
-  if (!client) {
-    return (
-      <Box flex={1} justifyContent="center" alignItems="center">
-        <Text>Cliente no encontrado</Text>
-      </Box>
-    );
-  }
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleRegisterPayment = () => setIsPaymentModalOpen(true);
   const handleAddDebt = () => setIsDebtModalOpen(true);
 
@@ -151,16 +159,32 @@ export default function CreditClientScreen() {
 
     setAddingPayment(true);
     try {
-      await addGlobalPayment({
+      const result = await addGlobalPayment({
         businessId,
         debtorId: id as string,
         amount: toNumber(data.amount),
         method: data.method,
         note: data.note,
       });
-      // Reload debts first, then reload payments for all debt IDs
-      await loadDebtsByClient(id as string, businessId);
+
+      // 1️⃣ Insertar pago sintético con totalAmount para mostrarlo INMEDIATAMENTE
+      //    en el extracto antes de recargar del backend.
+      addGlobalPaymentSummary(result.totalAmount, data.method, data.note);
+
+      // 2️⃣ Limpiar balance local para no mostrar un valor obsoleto
+      //    mientras llega el dato fresco del backend.
+      setClient((prev: any) => prev ? { ...prev, balance: undefined } : prev);
+
+      // 3️⃣ refreshClient va al backend sin caché — actualiza balance y status
+      //    tanto en el estado local como en el contexto (clientList se beneficia).
+      const updated = await refreshClient(id as string, businessId);
+      if (updated) setClient(updated);
+
+      // 4️⃣ Recargar pagos reales del backend para sincronizar el extracto completo.
+      //    Esto reemplaza el pago sintético con los pagos individuales reales.
       await loadAllPaymentsForClient(debts.map((d) => d.id), businessId);
+
+      setMovementsPage(1);
     } catch (error) {
       console.error("Error al registrar pago:", error);
     } finally {
@@ -180,6 +204,12 @@ export default function CreditClientScreen() {
         description: data.description,
         dueDate: new Date().toISOString(),
       });
+
+      // refreshClient actualiza balance/status en el contexto (clientList se beneficia)
+      const updated = await refreshClient(id as string, businessId);
+      if (updated) setClient(updated);
+
+      // loadDebtsByClient cambia debts.length → el useEffect recargará pagos automáticamente
       await loadDebtsByClient(id as string, businessId);
     } catch (error) {
       console.error("Error al agregar deuda:", error);
@@ -188,6 +218,7 @@ export default function CreditClientScreen() {
     }
   };
 
+  // ── Formatters ────────────────────────────────────────────────────────────
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-CO", {
       style: "currency",
@@ -198,6 +229,23 @@ export default function CreditClientScreen() {
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("es-CO");
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <Box flex={1} justifyContent="center" alignItems="center">
+        <Text>Cargando cliente...</Text>
+      </Box>
+    );
+  }
+
+  if (!client) {
+    return (
+      <Box flex={1} justifyContent="center" alignItems="center">
+        <Text>Cliente no encontrado</Text>
+      </Box>
+    );
+  }
 
   return (
     <Box flex={1} bg="$backgroundLight50">
@@ -243,16 +291,12 @@ export default function CreditClientScreen() {
                 style={{
                   color: currentBalance > 0 ? "#f87171" : "#4ade80",
                   letterSpacing: 1,
-                  textTransform: "uppercase",
                 }}
               >
-                {currentBalance > 0
-                  ? `● ${pendingDebts.length} ${pendingDebts.length === 1 ? "deuda pendiente" : "deudas pendientes"}`
-                  : "● Al día"}
+                {currentBalance > 0 ? "DEBE" : "AL DÍA"}
               </Text>
             </Box>
 
-            {/* Label */}
             <Text
               size="xs"
               mb="$1"
@@ -281,13 +325,11 @@ export default function CreditClientScreen() {
                   {Math.min(100, Math.round((totalPayments / totalDebts) * 100))}%
                 </Text>
               </HStack>
-              {/* Track */}
               <Box
                 h={5}
                 borderRadius={4}
                 style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
               >
-                {/* Fill */}
                 <Box
                   h={5}
                   borderRadius={4}
@@ -317,7 +359,6 @@ export default function CreditClientScreen() {
                 </Text>
               </VStack>
 
-              {/* Divider */}
               <Box w={1} style={{ backgroundColor: "rgba(255,255,255,0.08)" }} />
 
               <VStack space="xs" alignItems="center">
@@ -329,7 +370,6 @@ export default function CreditClientScreen() {
                 </Text>
               </VStack>
 
-              {/* Divider */}
               <Box w={1} style={{ backgroundColor: "rgba(255,255,255,0.08)" }} />
 
               <VStack space="xs" alignItems="flex-end">
@@ -394,14 +434,69 @@ export default function CreditClientScreen() {
                 No hay movimientos registrados
               </Text>
             </Card>
-          ) : (
-            <>
-              {sortedMovements.map((item) => {
-                if (item.type === "debt") {
-                  const debt = item.data;
+          ) : (() => {
+            const totalMovements = sortedMovements.length;
+            const totalPages = Math.ceil(totalMovements / MOVEMENTS_LIMIT);
+            const paginatedMovements = sortedMovements.slice(
+              (movementsPage - 1) * MOVEMENTS_LIMIT,
+              movementsPage * MOVEMENTS_LIMIT
+            );
+
+            return (
+              <>
+                {paginatedMovements.map((item) => {
+                  if (item.type === "debt") {
+                    const debt = item.data;
+                    return (
+                      <Card
+                        key={`debt-${debt.id}`}
+                        p="$3"
+                        bg="$white"
+                        borderRadius={8}
+                        borderWidth={1}
+                        borderColor="$borderLight200"
+                      >
+                        <HStack alignItems="center" justifyContent="space-between">
+                          <VStack flex={1}>
+                            <HStack alignItems="center" space="xs">
+                              <Box
+                                w={8}
+                                h={8}
+                                borderRadius="$full"
+                                bg={paidDebtIds.has(debt.id) ? Colors.success : Colors.error}
+                              />
+                              <Text size="sm" fontWeight="$medium" color={Colors.primary}>
+                                {debt.description || "Sin descripción"}
+                              </Text>
+                            </HStack>
+                            <Text size="xs" color="$textLight500">
+                              {formatDate(debt.dueDate)}
+                            </Text>
+                            {paidDebtIds.has(debt.id) && (
+                              <Text size="xs" color={Colors.success}>
+                                Pagada ✓
+                              </Text>
+                            )}
+                          </VStack>
+                          <Text size="md" fontWeight="$semibold" color={Colors.error}>
+                            +{formatCurrency(toNumber(debt.amount))}
+                          </Text>
+                        </HStack>
+                      </Card>
+                    );
+                  }
+
+                  const payment = item.data;
+                  // Para pagos globales (isGlobalSummary o tiene totalAmount): mostrar totalAmount.
+                  // Para pagos individuales por deuda: mostrar amount (appliedAmount).
+                  const displayAmount = toNumber(
+                    (payment as any).isGlobalSummary
+                      ? (payment as any).totalAmount
+                      : payment.amount
+                  );
                   return (
                     <Card
-                      key={`debt-${debt.id}`}
+                      key={`payment-${payment.id}`}
                       p="$3"
                       bg="$white"
                       borderRadius={8}
@@ -411,64 +506,96 @@ export default function CreditClientScreen() {
                       <HStack alignItems="center" justifyContent="space-between">
                         <VStack flex={1}>
                           <HStack alignItems="center" space="xs">
-                            <Box
-                              w={8}
-                              h={8}
-                              borderRadius="$full"
-                              bg={paidDebtIds.has(debt.id) ? Colors.success : Colors.error}
-                            />
+                            <Box w={8} h={8} borderRadius="$full" bg={Colors.success} />
                             <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                              {debt.description || "Sin descripción"}
+                              Pago registrado
                             </Text>
                           </HStack>
                           <Text size="xs" color="$textLight500">
-                            {formatDate(debt.dueDate)}
+                            {payment.createdAt ? formatDate(payment.createdAt) : "Fecha desconocida"}
                           </Text>
-                          {paidDebtIds.has(debt.id) && (
-                            <Text size="xs" color={Colors.success}>
-                              Pagada ✓
+                          {payment.method && (
+                            <Text size="xs" color="$textLight400">
+                              {payment.method}
                             </Text>
                           )}
                         </VStack>
-                        <Text size="md" fontWeight="$semibold" color={Colors.error}>
-                          +{formatCurrency(toNumber(debt.amount))}
+                        <Text size="md" fontWeight="$semibold" color={Colors.success}>
+                          -{formatCurrency(displayAmount)}
                         </Text>
                       </HStack>
                     </Card>
                   );
-                }
+                })}
 
-                const payment = item.data;
-                return (
-                  <Card
-                    key={`payment-${payment.id}`}
-                    p="$3"
-                    bg="$white"
-                    borderRadius={8}
-                    borderWidth={1}
-                    borderColor="$borderLight200"
-                  >
-                    <HStack alignItems="center" justifyContent="space-between">
-                      <VStack flex={1}>
-                        <HStack alignItems="center" space="xs">
-                          <Box w={8} h={8} borderRadius="$full" bg={Colors.success} />
-                          <Text size="sm" fontWeight="$medium" color={Colors.primary}>
-                            {payment.note || "Pago registrado"}
+                {/* ── Paginación del extracto ── */}
+                {totalPages > 1 && (
+                  <Box mt="$3" mb="$1">
+                    <Text size="xs" color="$textLight400" textAlign="center" mb="$2">
+                      {(movementsPage - 1) * MOVEMENTS_LIMIT + 1}–{Math.min(movementsPage * MOVEMENTS_LIMIT, totalMovements)} de {totalMovements} movimientos
+                    </Text>
+                    <HStack justifyContent="center" alignItems="center" space="xs">
+                      <Pressable
+                        onPress={() => setMovementsPage((p) => Math.max(1, p - 1))}
+                        disabled={movementsPage === 1}
+                        style={{
+                          width: 36, height: 36, borderRadius: 10,
+                          alignItems: "center", justifyContent: "center",
+                          backgroundColor: movementsPage === 1 ? "#f3f4f6" : Colors.primary + "15",
+                          opacity: movementsPage === 1 ? 0.4 : 1,
+                        }}
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={16}
+                          color={movementsPage === 1 ? "#9ca3af" : Colors.primary}
+                        />
+                      </Pressable>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <Pressable
+                          key={page}
+                          onPress={() => setMovementsPage(page)}
+                          style={{
+                            width: 36, height: 36, borderRadius: 10,
+                            alignItems: "center", justifyContent: "center",
+                            backgroundColor: movementsPage === page ? Colors.primary : "#f9fafb",
+                            borderWidth: movementsPage === page ? 0 : 1,
+                            borderColor: "#e5e7eb",
+                          }}
+                        >
+                          <Text
+                            size="sm"
+                            fontWeight={movementsPage === page ? "$bold" : "$medium"}
+                            style={{ color: movementsPage === page ? "#fff" : "#374151" }}
+                          >
+                            {page}
                           </Text>
-                        </HStack>
-                        <Text size="xs" color="$textLight500">
-                          {payment.method}
-                        </Text>
-                      </VStack>
-                      <Text size="md" fontWeight="$semibold" color={Colors.success}>
-                        -{formatCurrency(toNumber(payment.amount))}
-                      </Text>
+                        </Pressable>
+                      ))}
+
+                      <Pressable
+                        onPress={() => setMovementsPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={movementsPage === totalPages}
+                        style={{
+                          width: 36, height: 36, borderRadius: 10,
+                          alignItems: "center", justifyContent: "center",
+                          backgroundColor: movementsPage === totalPages ? "#f3f4f6" : Colors.primary + "15",
+                          opacity: movementsPage === totalPages ? 0.4 : 1,
+                        }}
+                      >
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={movementsPage === totalPages ? "#9ca3af" : Colors.primary}
+                        />
+                      </Pressable>
                     </HStack>
-                  </Card>
-                );
-              })}
-            </>
-          )}
+                  </Box>
+                )}
+              </>
+            );
+          })()}
         </VStack>
       </ScrollView>
 

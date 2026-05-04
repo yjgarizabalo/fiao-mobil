@@ -13,7 +13,8 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
+import { CustomAlert, useCustomAlert } from "../../components/CustomAlert";
 import Header from "../../components/Header";
 import { Colors } from "../../constants/Colors";
 import { AuthMessages } from "../../constants/Messages";
@@ -32,6 +33,10 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const { register, login } = useAuth();
+  const { alertState, showAlert, hideAlert } = useCustomAlert();
+
+  // Track if we need to navigate after closing success alert
+  const [pendingNavigation, setPendingNavigation] = useState(false);
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -50,21 +55,21 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     if (!isValidEmail(email)) {
       const { title, message } = AuthMessages.validation.invalidEmail;
-      Alert.alert(title, message);
+      showAlert("warning", title, message);
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert(
+      showAlert(
+        "warning",
         "Contraseña muy corta",
         "Tu contraseña debe tener al menos 6 caracteres para mantener tu cuenta segura.",
       );
+      return;
     }
 
     setLoading(true);
@@ -80,7 +85,15 @@ export default function RegisterScreen() {
         password,
       });
       await login({ identifier: email, password });
-      router.replace("/(main)/(tabs)/home");
+
+      // Show success alert, then navigate on close
+      setPendingNavigation(true);
+      showAlert(
+        "success",
+        "¡Cuenta creada! 🎉",
+        `Bienvenido/a, ${firstName}. Tu cuenta ha sido registrada exitosamente.`,
+        "Empezar",
+      );
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
 
@@ -98,14 +111,32 @@ export default function RegisterScreen() {
         }
       }
 
-      Alert.alert(errorMessage.title, errorMessage.message);
+      showAlert("error", errorMessage.title, errorMessage.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleAlertClose = () => {
+    hideAlert();
+    if (pendingNavigation) {
+      setPendingNavigation(false);
+      router.replace("/(main)/(tabs)/home");
+    }
+  };
+
   return (
     <Box flex={1} bg="$backgroundLight50">
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertState.visible}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        confirmText={alertState.confirmText}
+        onClose={handleAlertClose}
+      />
+
       <Header
         title="Registro"
         showBack

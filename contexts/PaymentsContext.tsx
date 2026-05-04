@@ -17,6 +17,9 @@ export interface Payment {
   type: string;
   note: string;
   createdAt?: string;
+  // Presente solo en pagos globales sintéticos — monto total del grupo
+  totalAmount?: number;
+  isGlobalSummary?: boolean;
 }
 
 export interface AddPayments {
@@ -36,10 +39,15 @@ export interface AddGlobalPayment {
   note: string;
 }
 
+export interface GlobalPaymentResult {
+  totalAmount: number;
+}
+
 interface PaymentsContextType {
   payments: Payment[];
   addPayment: (payment: AddPayments) => Promise<void>;
-  addGlobalPayment: (payment: AddGlobalPayment) => Promise<void>;
+  addGlobalPayment: (payment: AddGlobalPayment) => Promise<GlobalPaymentResult>;
+  addGlobalPaymentSummary: (totalAmount: number, method: string, note: string) => void;
   loadAllPaymentsForClient: (debtIds: string[], businessId: string) => Promise<void>;
   setPayments: Dispatch<SetStateAction<Payment[]>>;
   clearPayments: () => void;
@@ -79,9 +87,9 @@ export const PaymentProvider = ({ children }: { children: ReactNode }) => {
    * Registers a single global payment against the client's total balance.
    * POST /payments/global
    */
-  const addGlobalPayment = useCallback(async (paymentData: AddGlobalPayment): Promise<void> => {
+  const addGlobalPayment = useCallback(async (paymentData: AddGlobalPayment): Promise<GlobalPaymentResult> => {
     try {
-      await api.post("/payments/global", {
+      const response = await api.post("/payments/global", {
         debtorId: paymentData.debtorId,
         amount: paymentData.amount,
         method: paymentData.method,
@@ -89,6 +97,9 @@ export const PaymentProvider = ({ children }: { children: ReactNode }) => {
       }, {
         headers: { "x-business-id": paymentData.businessId },
       });
+      // Retorna group.totalAmount según la respuesta del servicio
+      const totalAmount = response.data?.group?.totalAmount ?? paymentData.amount;
+      return { totalAmount };
     } catch (error) {
       console.error("Error creating global payment:", error);
       throw error;
@@ -96,9 +107,30 @@ export const PaymentProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   /**
-   * Loads payments for all debts of a client in parallel.
-   * GET /debts/:debtId/payments?page=1&limit=100&type=PAYMENT
+   * Inserta un pago sintético de resumen global en la lista local.
+   * Se llama desde clientDetail justo después de addGlobalPayment para
+   * mostrar el totalAmount del grupo en el extracto de movimientos,
+   * antes de que loadAllPaymentsForClient sobrescriba la lista con
+   * los pagos individuales (appliedAmount por deuda).
    */
+  const addGlobalPaymentSummary = useCallback(
+    (totalAmount: number, method: string, note: string) => {
+      const summary: Payment = {
+        id: `global-summary-${Date.now()}`,
+        debtId: "",
+        amount: totalAmount,
+        totalAmount,
+        isGlobalSummary: true,
+        method,
+        type: "PAYMENT",
+        note,
+        createdAt: new Date().toISOString(),
+      };
+      setPayments((prev) => [summary, ...prev]);
+    },
+    []
+  );
+
   const loadAllPaymentsForClient = useCallback(
     async (debtIds: string[], businessId: string) => {
       if (debtIds.length === 0) return;
@@ -138,11 +170,12 @@ export const PaymentProvider = ({ children }: { children: ReactNode }) => {
       payments,
       addPayment,
       addGlobalPayment,
+      addGlobalPaymentSummary,
       setPayments,
       loadAllPaymentsForClient,
       clearPayments,
     }),
-    [payments, addPayment, addGlobalPayment, loadAllPaymentsForClient, clearPayments],
+    [payments, addPayment, addGlobalPayment, addGlobalPaymentSummary, loadAllPaymentsForClient, clearPayments],
   );
 
   return (

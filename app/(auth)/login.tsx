@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-    Box,
-    Button,
-    ButtonText,
-    Heading,
-    Image,
-    Input,
-    InputField,
-    InputIcon,
-    InputSlot,
-    Pressable,
-    Text,
-    VStack,
+  Box,
+  Button,
+  ButtonText,
+  HStack,
+  Image,
+  Input,
+  InputField,
+  InputIcon,
+  InputSlot,
+  Pressable,
+  Text,
+  VStack,
 } from "@gluestack-ui/themed";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { CustomAlert, useCustomAlert } from "../../components/CustomAlert";
 import { Colors } from "../../constants/Colors";
 import { AuthMessages } from "../../constants/Messages";
 import { useAuth } from "../../contexts/AuthContext";
@@ -29,24 +30,22 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const { login } = useAuth();
+  const { alertState, showAlert, hideAlert } = useCustomAlert();
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
-
     if (!identifier.trim()) newErrors.identifier = "Este campo es obligatorio";
     if (!password.trim()) newErrors.password = "Este campo es obligatorio";
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     if (!isValidIdentifier(identifier)) {
-      Alert.alert(
+      showAlert(
+        "warning",
         "Datos inválidos",
         "Ingresa un correo electrónico válido o un número de identificación.",
       );
@@ -59,7 +58,6 @@ export default function LoginScreen() {
       router.replace("/(main)/(tabs)/home");
     } catch (error) {
       let errorMessage = AuthMessages.login.unknownError;
-
       if (error instanceof AuthError) {
         switch (error.type) {
           case "INVALID_CREDENTIALS":
@@ -73,162 +71,261 @@ export default function LoginScreen() {
             break;
         }
       }
-
-      Alert.alert(errorMessage.title, errorMessage.message);
+      showAlert("error", errorMessage.title, errorMessage.message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Box flex={1} justifyContent="center" p="$6" bg="$white">
-      <VStack space="lg" alignItems="center">
-        <Image
-          source={require("../../assets/images/fiaoicon.png")}
-          alt="Fiao"
-          w={100}
-          h={100}
-          mb="$0"
-        />
-        <Heading size="2xl" textAlign="center" mb="$5" fontSize={24}>
-          Iniciar Sesión
-        </Heading>
+    <Box flex={1} style={{ backgroundColor: "#ffffff" }}>
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertState.visible}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        confirmText={alertState.confirmText}
+        onClose={hideAlert}
+      />
 
-        <VStack space="xs" w="100%">
-          <Input
-            size="lg"
-            w="100%"
-            h={54}
-            borderRadius={4}
-            borderColor={errors.identifier ? Colors.error : "$borderLight200"}
-          >
-            <InputField
-              placeholder="Correo o Número de Identificación *"
-              value={identifier}
-              onChangeText={setIdentifier}
-              keyboardType="default"
-              autoCapitalize="none"
-            />
-          </Input>
-          {errors.identifier && (
-            <Text size="xs" color={Colors.error}>
-              {errors.identifier}
-            </Text>
-          )}
-        </VStack>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Box flex={1} justifyContent="center" px="$6" py="$10">
 
-        <VStack space="xs" w="100%">
-          <Input
-            size="lg"
-            w="100%"
-            h={54}
-            borderColor={errors.password ? Colors.error : "$borderLight200"}
-          >
-            <InputField
-              placeholder="Ingresa tu contraseña *"
-              value={password}
-              onChangeText={setPassword}
-              type={showPassword ? "text" : "password"}
-            />
-            <InputSlot pr="$3" onPress={() => setShowPassword(!showPassword)}>
-              <InputIcon
-                as={() => (
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color={Colors.gray400}
-                  />
-                )}
+            {/* ── Logo + título ── */}
+            <VStack alignItems="center" mb="$10">
+              <Image
+                source={require("../../assets/images/fiaoicon.png")}
+                alt="Fiao"
+                w={90}
+                h={90}
+                resizeMode="contain"
+                mb="$5"
               />
-            </InputSlot>
-          </Input>
-          {errors.password && (
-            <Text size="xs" color={Colors.error}>
-              {errors.password}
-            </Text>
-          )}
-        </VStack>
+              <Text
+                style={{
+                  color: "#16101a",
+                  fontSize: 26,
+                  fontWeight: "800",
+                  letterSpacing: -0.5,
+                  textAlign: "center",
+                }}
+              >
+                Iniciar sesión
+              </Text>
+              <Text
+                style={{
+                  color: "rgba(22,16,26,0.4)",
+                  fontSize: 14,
+                  marginTop: 4,
+                  textAlign: "center",
+                }}
+              >
+                Ingresa tus datos para continuar
+              </Text>
+            </VStack>
 
-        <Pressable onPress={() => router.push("/(auth)/register")} mt="$2">
-          <Text color={Colors.gray400}>
-            ¿Olvidaste tu contraseña?{" "}
-            <Text
-              color={Colors.primary}
-              textDecorationLine="underline"
-              fontWeight="bold"
-            >
-              Ingresa aquí
-            </Text>
-          </Text>
-        </Pressable>
+            {/* ── Formulario ── */}
+            <VStack space="md">
 
-        <Button
-          size="lg"
-          w="100%"
-          mt="$4"
-          h={52}
-          borderRadius={14}
-          bg={Colors.primary}
-          $pressed={{
-            bg: Colors.primaryHover,
-          }}
-          onPress={handleLogin}
-          isDisabled={isLoading}
-        >
-          <ButtonText color={Colors.white}>
-            {isLoading ? "Iniciando..." : "Iniciar"}
-          </ButtonText>
-        </Button>
+              {/* Identifier */}
+              <VStack space="xs">
+                <Text
+                  size="xs"
+                  style={{
+                    color: "#16101a",
+                    letterSpacing: 0.6,
+                    fontWeight: "700",
+                  }}
+                >
+                  CORREO O IDENTIFICACIÓN
+                </Text>
+                <Input
+                  size="lg"
+                  w="100%"
+                  h={52}
+                  borderRadius={14}
+                  borderWidth={1.5}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    borderColor: errors.identifier ? "#f87171" : "#e4e4e7",
+                  }}
+                >
+                  <InputField
+                    placeholder="correo@ejemplo.com"
+                    placeholderTextColor="rgba(22,16,26,0.25)"
+                    value={identifier}
+                    onChangeText={setIdentifier}
+                    keyboardType="default"
+                    autoCapitalize="none"
+                    style={{ color: "#16101a" }}
+                  />
+                </Input>
+                {errors.identifier && (
+                  <Text size="xs" style={{ color: "#f87171" }}>
+                    {errors.identifier}
+                  </Text>
+                )}
+              </VStack>
 
-        {/* <Button
-          size="lg"
-          w="100%"
-          h={52}
-          borderRadius={14}
-          bg={Colors.gray100}
-          $pressed={{
-            bg: Colors.gray200
-          }}
-          onPress={handleLogin}
-        >
-          <HStack space="sm" alignItems="center">
-            <Image
-              source={require('../../assets/images/googleicon.png')}
-              alt="Google"
-              w={20}
-              h={20}
-            />
-            <ButtonText color={Colors.primary}>Iniciar con Google</ButtonText>
-          </HStack>
-        </Button> */}
+              {/* Password */}
+              <VStack space="xs">
+                <Text
+                  size="xs"
+                  style={{
+                    color: "#16101a",
+                    letterSpacing: 0.6,
+                    fontWeight: "700",
+                  }}
+                >
+                  CONTRASEÑA
+                </Text>
+                <Input
+                  size="lg"
+                  w="100%"
+                  h={52}
+                  borderRadius={14}
+                  borderWidth={1.5}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    borderColor: errors.password ? "#f87171" : "#e4e4e7",
+                  }}
+                >
+                  <InputField
+                    placeholder="••••••••"
+                    placeholderTextColor="rgba(22,16,26,0.25)"
+                    value={password}
+                    onChangeText={setPassword}
+                    type={showPassword ? "text" : "password"}
+                    style={{ color: "#16101a" }}
+                  />
+                  <InputSlot pr="$3" onPress={() => setShowPassword(!showPassword)}>
+                    <InputIcon
+                      as={() => (
+                        <Ionicons
+                          name={showPassword ? "eye-off" : "eye"}
+                          size={20}
+                          color="rgba(22,16,26,0.3)"
+                        />
+                      )}
+                    />
+                  </InputSlot>
+                </Input>
+                {errors.password && (
+                  <Text size="xs" style={{ color: "#f87171" }}>
+                    {errors.password}
+                  </Text>
+                )}
+              </VStack>
 
-        <Pressable onPress={() => router.push("/(auth)/register")} mt="$2">
-          <Text color={Colors.gray400}>
-            ¿No tienes cuenta?{" "}
-            <Text
-              color={Colors.primary}
-              textDecorationLine="underline"
-              fontWeight="bold"
-            >
-              Regístrate
-            </Text>
-          </Text>
-        </Pressable>
+              {/* Forgot password */}
+              <Pressable
+                // onPress={() => router.push("/(auth)/forgot-password")}
+                alignSelf="flex-end"
+              >
+                <Text
+                  size="sm"
+                  style={{ color: Colors.primary, fontWeight: "600" }}
+                >
+                  ¿Olvidaste tu contraseña?
+                </Text>
+              </Pressable>
 
-        <Box
-          w="100%"
-          h={60}
-          mt="$6"
-          bg={Colors.gray100}
-          borderRadius={12}
-          justifyContent="center"
-          alignItems="center"
-        >
-          <Text fontSize={12} color={Colors.gray500} fontWeight="bold">
-            PATROCINADORES
-          </Text>
-        </Box>
-      </VStack>
+              {/* Botón principal verde */}
+              <Button
+                size="lg"
+                w="100%"
+                mt="$2"
+                h={54}
+                borderRadius={16}
+                onPress={handleLogin}
+                isDisabled={isLoading}
+                style={{
+                  backgroundColor: "#4ade80",
+                  shadowColor: "#4ade80",
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 14,
+                  elevation: 8,
+                }}
+              >
+                <HStack alignItems="center" space="sm">
+                  <ButtonText
+                    style={{
+                      color: "#16101a",
+                      fontWeight: "800",
+                      fontSize: 16,
+                    }}
+                  >
+                    {isLoading ? "Iniciando..." : "Iniciar sesión"}
+                  </ButtonText>
+                </HStack>
+              </Button>
+
+              {/* Divider */}
+              <HStack alignItems="center" space="sm" mt="$1">
+                <Box flex={1} h={1} style={{ backgroundColor: "#f0f0f0" }} />
+                <Text style={{ color: "rgba(22,16,26,0.25)", fontSize: 12 }}>o</Text>
+                <Box flex={1} h={1} style={{ backgroundColor: "#f0f0f0" }} />
+              </HStack>
+
+              {/* Registro */}
+              <Pressable
+                onPress={() => router.push("/(auth)/register")}
+                alignSelf="center"
+              >
+                <Text style={{ color: "rgba(22,16,26,0.45)", fontSize: 14 }}>
+                  ¿No tienes cuenta?{" "}
+                  <Text
+                    style={{
+                      color: "#16101a",
+                      fontWeight: "800",
+                      textDecorationLine: "underline",
+                    }}
+                  >
+                    Regístrate
+                  </Text>
+                </Text>
+              </Pressable>
+
+              {/* Patrocinadores */}
+              <Box
+                w="100%"
+                h={56}
+                mt="$2"
+                borderRadius={14}
+                justifyContent="center"
+                alignItems="center"
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: "#f0f0f0",
+                  borderStyle: "dashed",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(22,16,26,0.2)",
+                    fontWeight: "700",
+                    letterSpacing: 2,
+                  }}
+                >
+                  PATROCINADORES
+                </Text>
+              </Box>
+
+            </VStack>
+          </Box>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Box>
   );
 }
