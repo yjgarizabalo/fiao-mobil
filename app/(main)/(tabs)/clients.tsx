@@ -1,5 +1,6 @@
 import AddDebtModal from "@/components/AddDebtModal";
 import Header from "@/components/Header";
+import { ClientSkeletonList } from "@/components/SkeletonLoader";
 import { Colors } from "@/constants/Colors";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { Client, useClients } from "@/contexts/ClientContext";
@@ -31,19 +32,6 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-// Balance = suma de remainingAmount de las deudas del cliente.
-// Retorna -1 si las deudas de ese cliente aún no están en el mapa (cargando).
-const getBalanceFromMap = (
-  clientId: string,
-  debtsMap: Record<string, any[]>
-): number => {
-  if (!(clientId in debtsMap)) return -1;
-  return (debtsMap[clientId] ?? []).reduce(
-    (sum: number, d: any) => sum + Number(d.remainingAmount ?? 0),
-    0
-  );
-};
-
 const getInitials = (name: string) =>
   name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
@@ -60,8 +48,8 @@ const normalizeText = (text: string) =>
 export default function DebtorsTab() {
   const router = useRouter();
   const { businesses: rawBusinesses } = useBusiness();
-  const { clients, pagination, loadAllClients, clearClients } = useClients();
-  const { addDebt, clearDebts, debtsMap, loadDebtsByClients } = useDebts();
+  const { clients, pagination, loadAllClients } = useClients();
+  const { addDebt } = useDebts();
 
   const businesses = Array.isArray(rawBusinesses) ? rawBusinesses : [];
 
@@ -69,77 +57,33 @@ export default function DebtorsTab() {
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-
-  const initialLoadDone = useRef(false);
-  const currentPageRef = useRef(currentPage);
+  const currentPageRef = useRef(1);
 
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [addingDebt, setAddingDebt] = useState(false);
 
-  // ── Único mecanismo para disparar loadDebtsByClients ─────────────────────
-  // Se incrementa explícitamente después de cada carga de clientes (carga
-  // inicial, foco, paginación, post-mutación). Se eliminó el useEffect sobre
-  // [clients] que corría en paralelo con éste y causaba doble llamada a la API.
-  const [debtsLoadTrigger, setDebtsLoadTrigger] = useState(0);
-
-  useEffect(() => {
-    if (!clients.length || debtsLoadTrigger === 0) return;
-    const input = clients.map((c) => ({
-      id: c.id,
-      businessId: (c as any).businessId ?? businesses[0]?.id ?? "",
-    }));
-    loadDebtsByClients(input);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debtsLoadTrigger]);
-
-  // ── Carga inicial ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    setLoading(true);
-    setCurrentPage(1);
-    currentPageRef.current = 1;
-    clearClients();
-    clearDebts();
-    initialLoadDone.current = false;
-
-    loadAllClients(1, LIMIT).finally(() => {
-      setLoading(false);
-      initialLoadDone.current = true;
-      // Disparar deudas una sola vez al terminar la carga inicial
-      setDebtsLoadTrigger(1);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  // ── Refrescar al recuperar foco ───────────────────────────────────────────
-  // Recarga clientes y luego incrementa el trigger para que las deudas se
-  // recarguen exactamente una vez, sin importar si clients[] cambió o no.
+  // Siempre muestra skeleton al enfocar el tab
   useFocusEffect(
     useCallback(() => {
-      if (!initialLoadDone.current) return;
-
-      const reload = async () => {
-        await loadAllClients(currentPageRef.current, LIMIT);
-        setDebtsLoadTrigger((n) => n + 1);
-      };
-
-      reload();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      setLoading(true);
+      setCurrentPage(1);
+      currentPageRef.current = 1;
+      loadAllClients(1, LIMIT).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
-  // ── Cambio de página ──────────────────────────────────────────────────────
   const handlePageChange = async (page: number) => {
     if (page < 1 || (pagination && page > pagination.totalPages)) return;
     setPageLoading(true);
     setCurrentPage(page);
     currentPageRef.current = page;
     await loadAllClients(page, LIMIT);
-    setDebtsLoadTrigger((n) => n + 1);
     setPageLoading(false);
   };
 
@@ -182,8 +126,6 @@ export default function DebtorsTab() {
       });
       handleCloseDebtModal();
       await loadAllClients(currentPageRef.current, LIMIT);
-      // Refrescar deudas tras agregar una nueva
-      setDebtsLoadTrigger((n) => n + 1);
     } catch (error) {
       console.error("Error al agregar deuda:", error);
     } finally {
@@ -191,7 +133,6 @@ export default function DebtorsTab() {
     }
   };
 
-  // ── Paginación visual ─────────────────────────────────────────────────────
   const totalPages = pagination?.totalPages ?? 1;
   const total = pagination?.total ?? clients.length;
 
@@ -245,11 +186,8 @@ export default function DebtorsTab() {
                   borderColor: "#e5e7eb",
                 }}
               >
-                <Text
-                  size="sm"
-                  fontWeight={currentPage === item ? "$bold" : "$medium"}
-                  style={{ color: currentPage === item ? "#fff" : "#374151" }}
-                >
+                <Text size="sm" fontWeight={currentPage === item ? "$bold" : "$medium"}
+                  style={{ color: currentPage === item ? "#fff" : "#374151" }}>
                   {item}
                 </Text>
               </Pressable>
@@ -274,8 +212,9 @@ export default function DebtorsTab() {
 
   if (loading) {
     return (
-      <Box flex={1} bg="$backgroundLight50" justifyContent="center" alignItems="center">
-        <Text size="sm" color="$textLight400">Cargando clientes...</Text>
+      <Box flex={1} bg="$backgroundLight50">
+        <Header title="Clientes" />
+        <ClientSkeletonList />
       </Box>
     );
   }
@@ -335,47 +274,33 @@ export default function DebtorsTab() {
         ) : (
           <VStack space="sm">
             {filteredClients.map((client) => {
-              const balance = getBalanceFromMap(client.id, debtsMap);
-              const isLoadingBalance = balance === -1;
-              const isDebe = !isLoadingBalance && balance > 0;
-              const isAlDia = !isLoadingBalance && balance === 0;
+              const isDebe = client.hasPendingDebt;
+              const balance = client.totalBalance;
               const avatarColor = getAvatarColor(client.name ?? "A");
               const initials = getInitials(client.name ?? "?");
-
               return (
                 <Pressable key={client.id} onPress={() => handleClientPress(client)}>
-                  <Box
-                    bg="$white" borderRadius={14} borderWidth={1}
-                    borderColor={isDebe ? Colors.error + "20" : "$borderLight100"}
-                    overflow="hidden"
-                    style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}
-                  >
+                  <Box bg="$white" borderRadius={14} borderWidth={1}
+                    borderColor={isDebe ? Colors.error + "20" : "$borderLight100"} overflow="hidden"
+                    style={{ shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 }}>
                     <HStack alignItems="center" px="$4" py="$3" space="md">
-                      <Box w={44} h={44} borderRadius="$full" alignItems="center" justifyContent="center" style={{ backgroundColor: avatarColor + "22" }}>
+                      <Box w={44} h={44} borderRadius="$full" alignItems="center" justifyContent="center"
+                        style={{ backgroundColor: avatarColor + "22" }}>
                         <Text size="sm" fontWeight="$bold" style={{ color: avatarColor }}>{initials}</Text>
                       </Box>
-
                       <VStack flex={1} space="xs">
                         <Text size="md" fontWeight="$semibold" color={Colors.primary} numberOfLines={1}>
                           {client.name}
                         </Text>
                         <HStack alignItems="center" space="xs" mt="$0.5">
-                          <Box
-                            px="$2" py="$0.5" borderRadius={20}
-                            style={{
-                              backgroundColor: isDebe ? Colors.error + "15" : isAlDia ? Colors.success + "15" : "#f3f4f6",
-                            }}
-                          >
+                          <Box px="$2" py="$0.5" borderRadius={20}
+                            style={{ backgroundColor: isDebe ? Colors.error + "15" : Colors.success + "15" }}>
                             <HStack alignItems="center" space="xs">
-                              <Box
-                                w={5} h={5} borderRadius="$full"
-                                style={{ backgroundColor: isDebe ? Colors.error : isAlDia ? Colors.success : "#9ca3af" }}
-                              />
-                              <Text
-                                size="xs" fontWeight="$semibold"
-                                style={{ color: isDebe ? Colors.error : isAlDia ? Colors.success : "#6b7280" }}
-                              >
-                                {isLoadingBalance ? "···" : isDebe ? "Debe" : "Al día"}
+                              <Box w={5} h={5} borderRadius="$full"
+                                style={{ backgroundColor: isDebe ? Colors.error : Colors.success }} />
+                              <Text size="xs" fontWeight="$semibold"
+                                style={{ color: isDebe ? Colors.error : Colors.success }}>
+                                {isDebe ? "Debe" : "Al día"}
                               </Text>
                             </HStack>
                           </Box>
@@ -386,17 +311,10 @@ export default function DebtorsTab() {
                           )}
                         </HStack>
                       </VStack>
-
                       <Box w={28} h={28} borderRadius="$full" bg="$backgroundLight50" alignItems="center" justifyContent="center">
                         <Ionicons name="chevron-forward" size={14} color="#9ca3af" />
                       </Box>
                     </HStack>
-
-                    {isDebe && (
-                      <Box h={3} style={{ backgroundColor: Colors.error + "30" }}>
-                        <Box h={3} w="100%" style={{ backgroundColor: Colors.error + "60" }} />
-                      </Box>
-                    )}
                   </Box>
                 </Pressable>
               );
@@ -406,11 +324,9 @@ export default function DebtorsTab() {
         )}
       </ScrollView>
 
-      <Box
-        position="absolute" bottom={0} left={0} right={0} px="$4" pt="$3" pb="$6" bg="$white"
+      <Box position="absolute" bottom={0} left={0} right={0} px="$4" pt="$3" pb="$6" bg="$white"
         borderTopWidth={1} borderTopColor="$borderLight100"
-        style={{ shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 8 }}
-      >
+        style={{ shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 8 }}>
         <Button size="lg" w="100%" h={52} borderRadius={14} bg={Colors.primary} $pressed={{ opacity: 0.85 }} onPress={handleAddClient}>
           <HStack alignItems="center" space="sm">
             <Box w={24} h={24} borderRadius="$full" bg="rgba(255,255,255,0.2)" alignItems="center" justifyContent="center">

@@ -56,7 +56,7 @@ export default function ProfileScreen() {
       label: 'Editar Perfil',
       description: 'Nombre, foto y datos personales',
       icon: '✏️',
-      onPress: () => { /* TODO: router.push('/edit-profile') */ },
+      onPress: () => router.push('/(profile)/editProfile'),
     },
     {
       id: 'notifications',
@@ -70,7 +70,7 @@ export default function ProfileScreen() {
       label: 'Seguridad',
       description: 'Contraseña y acceso',
       icon: '🔒',
-      onPress: () => { /* TODO */ },
+      onPress: () => router.push('/(profile)/editSecurity'),
     },
     {
       id: 'help',

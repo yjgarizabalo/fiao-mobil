@@ -1,5 +1,6 @@
 import AddDebtModal from "@/components/AddDebtModal";
 import Header from "@/components/Header";
+import { ClientSkeletonList } from "@/components/SkeletonLoader";
 import { Colors } from "@/constants/Colors";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { Client, useClients } from "@/contexts/ClientContext";
@@ -31,19 +32,6 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-// Balance = suma de remainingAmount de las deudas del cliente.
-// Retorna -1 si las deudas de ese cliente aún no están en el mapa (cargando).
-const getBalanceFromMap = (
-  clientId: string,
-  debtsMap: Record<string, any[]>
-): number => {
-  if (!(clientId in debtsMap)) return -1;
-  return (debtsMap[clientId] ?? []).reduce(
-    (sum: number, d: any) => sum + Number(d.remainingAmount ?? 0),
-    0
-  );
-};
-
 const getInitials = (name: string) =>
   name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
@@ -62,7 +50,7 @@ export default function ClientScreen() {
   const { businessId } = useLocalSearchParams();
   const { businesses: rawBusinesses } = useBusiness();
   const { clients, pagination, loadClientsByBusiness, loadAllClients, clearClients } = useClients();
-  const { addDebt, clearDebts, debtsMap, loadDebtsByClients } = useDebts();
+  const { addDebt } = useDebts();
 
   const businesses = Array.isArray(rawBusinesses) ? rawBusinesses : [];
 
@@ -81,30 +69,12 @@ export default function ClientScreen() {
   const hasBusinessFilter = typeof businessId === "string" && businessId.length > 0;
   const business = businesses.find((b) => b.id === businessId);
 
-  // ── Único mecanismo para disparar loadDebtsByClients ─────────────────────
-  // Se incrementa explícitamente después de cada carga de clientes (carga
-  // inicial, foco, paginación, post-mutación). Se eliminó el useEffect sobre
-  // [clients] que corría en paralelo con éste y causaba doble llamada a la API.
-  const [debtsLoadTrigger, setDebtsLoadTrigger] = useState(0);
-
-  useEffect(() => {
-    if (!clients.length || debtsLoadTrigger === 0) return;
-    const bId = hasBusinessFilter ? String(businessId) : undefined;
-    const input = clients.map((c) => ({
-      id: c.id,
-      businessId: bId ?? (c as any).businessId ?? businesses[0]?.id ?? "",
-    }));
-    loadDebtsByClients(input);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debtsLoadTrigger]);
-
   // ── Carga inicial y por cambio de businessId ──────────────────────────────
   useEffect(() => {
     setLoading(true);
     setCurrentPage(1);
     currentPageRef.current = 1;
     clearClients();
-    clearDebts();
     initialLoadDone.current = false;
 
     const load = hasBusinessFilter
@@ -114,8 +84,6 @@ export default function ClientScreen() {
     load.finally(() => {
       setLoading(false);
       initialLoadDone.current = true;
-      // Disparar deudas una sola vez al terminar la carga inicial
-      setDebtsLoadTrigger(1);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
@@ -137,7 +105,6 @@ export default function ClientScreen() {
         } else {
           await loadAllClients(currentPageRef.current, LIMIT);
         }
-        setDebtsLoadTrigger((n) => n + 1);
       };
 
       reload();
@@ -152,7 +119,6 @@ export default function ClientScreen() {
     setCurrentPage(page);
     currentPageRef.current = page;
     await loadAllClients(page, LIMIT);
-    setDebtsLoadTrigger((n) => n + 1);
     setPageLoading(false);
   };
 
@@ -202,8 +168,6 @@ export default function ClientScreen() {
       } else {
         await loadAllClients(currentPageRef.current, LIMIT);
       }
-      // Refrescar deudas tras agregar una nueva
-      setDebtsLoadTrigger((n) => n + 1);
     } catch (error) {
       console.error("Error al agregar deuda:", error);
     } finally {
@@ -292,22 +256,11 @@ export default function ClientScreen() {
     );
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <Box flex={1} bg="$backgroundLight50">
         <Header title="Clientes" showBack />
-        <Box flex={1} alignItems="center" justifyContent="center">
-          <VStack space="sm" alignItems="center">
-            <Box
-              w={48} h={48} borderRadius="$full"
-              bg={Colors.primary + "15"} alignItems="center" justifyContent="center"
-            >
-              <Ionicons name="people-outline" size={24} color={Colors.primary} />
-            </Box>
-            <Text size="sm" color="$textLight400">Cargando clientes...</Text>
-          </VStack>
-        </Box>
+        <ClientSkeletonList />
       </Box>
     );
   }
@@ -384,10 +337,9 @@ export default function ClientScreen() {
         ) : (
           <VStack space="sm">
             {filteredClients.map((client) => {
-              const balance = getBalanceFromMap(client.id, debtsMap);
-              const isLoadingBalance = balance === -1;
-              const isDebe = !isLoadingBalance && balance > 0;
-              const isAlDia = !isLoadingBalance && balance === 0;
+              const isDebe = client.hasPendingDebt;
+              const isAlDia = !isDebe;
+              const balance = client.totalBalance;
               const avatarColor = getAvatarColor(client.name ?? "A");
               const initials = getInitials(client.name ?? "?");
 
@@ -424,7 +376,7 @@ export default function ClientScreen() {
                                 size="xs" fontWeight="$semibold"
                                 style={{ color: isDebe ? Colors.error : isAlDia ? Colors.success : "#6b7280" }}
                               >
-                                {isLoadingBalance ? "···" : isDebe ? "Debe" : "Al día"}
+                                {isDebe ? "Debe" : "Al día"}
                               </Text>
                             </HStack>
                           </Box>
@@ -441,11 +393,6 @@ export default function ClientScreen() {
                       </Box>
                     </HStack>
 
-                    {isDebe && (
-                      <Box h={3} style={{ backgroundColor: Colors.error + "30" }}>
-                        <Box h={3} w="100%" style={{ backgroundColor: Colors.error + "60" }} />
-                      </Box>
-                    )}
                   </Box>
                 </Pressable>
               );

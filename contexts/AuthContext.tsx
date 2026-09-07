@@ -13,6 +13,10 @@ interface User {
   name: string;
   firstName?: string;
   lastName?: string;
+  documentType?: string;
+  documentNumber?: string;
+  phone?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -22,6 +26,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (data: Partial<User>) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -84,6 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const updateUser = async (data: Partial<User>) => {
+    const updated = { ...user!, ...data };
+    setUser(updated);
+    await AsyncStorage.setItem('auth_user', JSON.stringify(updated));
+  };
+
   const logout = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("auth_user");
@@ -131,6 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         login,
         register,
         logout,
+        updateUser,
         isLoading,
       }}
     >

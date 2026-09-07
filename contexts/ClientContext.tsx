@@ -16,9 +16,10 @@ export interface Client {
   documentType: string;
   documentNumber: string;
   phone: string;
-  status: "al_dia" | "debe";
   balance: number;
   businessId?: string;
+  totalBalance: number;
+  hasPendingDebt: boolean;
 }
 
 export interface PaginationMeta {
@@ -38,7 +39,7 @@ interface ClientContextType {
   pagination: PaginationMeta | null;
   addClient: (
     businessId: string,
-    client: Omit<Client, "id" | "status" | "balance">,
+    client: Omit<Client, "id" | "balance" | "totalBalance" | "hasPendingDebt">,
   ) => void;
   getClient: (clientId: string, businessId: string) => Promise<Client | undefined>;
   refreshClient: (clientId: string, businessId: string) => Promise<Client | undefined>;
@@ -70,7 +71,7 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
   const addClient = useCallback(
     async (
       businessId: string,
-      clientData: Omit<Client, "id" | "status" | "balance">,
+      clientData: Omit<Client, "id" | "balance" | "totalBalance" | "hasPendingDebt">,
     ) => {
       try {
         const response = await api.post(`/debtors`, clientData, {
@@ -124,16 +125,18 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
 
   const loadClientsByBusiness = useCallback(async (businessId: string) => {
     try {
-      const res = await api.get<ApiResponse<Client[]>>(`/debtors`, {
+      const res = await api.get(`/debtors`, {
         headers: { "x-business-id": businessId },
       });
-      const raw: Client[] = res.data?.data ?? [];
-      const data = Array.isArray(raw) ? raw : [];
+      const raw: any[] = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
 
       if (res.data?.meta) setPagination(res.data.meta);
 
-      // Inyectar businessId en cada cliente para que debtsMap pueda hidratar
-      const withBusinessId = data.map((c) => ({ ...c, businessId }));
+      const withBusinessId = raw.map((c) => ({ ...c, businessId })) as Client[];
       setClients(withBusinessId);
     } catch (error) {
       console.error("Error loading clients by business:", error);
@@ -145,12 +148,12 @@ export const ClientProvider = ({ children }: { children: ReactNode }) => {
       const res = await api.get<ApiResponse<Client[]>>(`/debtors/me/all`, {
         params: { page, limit },
       });
-      const raw: Client[] = res.data?.data ?? [];
+      const raw: any[] = res.data?.data ?? [];
       const data = Array.isArray(raw) ? raw : [];
 
       if (res.data?.meta) setPagination(res.data.meta);
 
-      setClients(data);
+      setClients(data as Client[]);
     } catch (error) {
       console.error("Error loading all clients:", error);
       setClients([]);
