@@ -1,71 +1,73 @@
-// Caché en memoria de los tokens de sesión. utils/api.ts (v1) leía AsyncStorage en cada
-// request; aquí se hidrata una sola vez al arrancar y de ahí en adelante se lee de
-// memoria — más rápido y evita una carrera si dos peticiones salen casi al tiempo justo
-// cuando se está guardando un token nuevo.
-import { getItems, removeItems, setItem, StorageKeys } from '../storage/storage';
+/**
+ * Fuente única de verdad de los tokens de sesión.
+ *
+ * Mantiene una copia en memoria para no pegarle a AsyncStorage en cada
+ * petición (el v1 hacía tres lecturas asíncronas *por request*), y notifica a
+ * quien escuche cuando la sesión se invalida, para que la UI reaccione en vez
+ * de quedarse colgada con un token muerto.
+ */
+import { StorageKeys, getItems, removeItems, setItem } from '../storage/storage';
 
 export interface SessionTokens {
-  accessToken: string | null;
+  accessToken: string;
   refreshToken: string | null;
 }
 
-let tokens: SessionTokens = { accessToken: null, refreshToken: null };
-let hydrated = false;
-let hydrating: Promise<SessionTokens> | null = null;
-
 type SessionExpiredListener = () => void;
+
+let cache: SessionTokens | null = null;
+let hydrated = false;
 const listeners = new Set<SessionExpiredListener>();
 
-export async function hydrateTokens(): Promise<SessionTokens> {
-  if (hydrated) return tokens;
-  if (hydrating) return hydrating;
+/** Carga los tokens persistidos. Idempotente: solo lee del disco una vez. */
+export const hydrateTokens = async (): Promise<SessionTokens | null> => {
+  if (hydrated) return cache;
 
-  hydrating = (async () => {
-    const stored = await getItems([StorageKeys.accessToken, StorageKeys.refreshToken]);
-    tokens = {
-      accessToken: stored[StorageKeys.accessToken] ?? null,
-      refreshToken: stored[StorageKeys.refreshToken] ?? null,
-    };
-    hydrated = true;
-    hydrating = null;
-    return tokens;
-  })();
+  const stored = await getItems([StorageKeys.accessToken, StorageKeys.refreshToken]);
+  const accessToken = stored[StorageKeys.accessToken];
 
-  return hydrating;
-}
-
-export function getTokens(): SessionTokens {
-  return tokens;
-}
-
-export function getAccessToken(): string | null {
-  return tokens.accessToken;
-}
-
-export function getRefreshToken(): string | null {
-  return tokens.refreshToken;
-}
-
-export async function setTokens(next: SessionTokens): Promise<void> {
-  tokens = next;
+  cache = accessToken
+    ? { accessToken, refreshToken: stored[StorageKeys.refreshToken] ?? null }
+    : null;
   hydrated = true;
-  await Promise.all([
-    next.accessToken ? setItem(StorageKeys.accessToken, next.accessToken) : Promise.resolve(),
-    next.refreshToken ? setItem(StorageKeys.refreshToken, next.refreshToken) : Promise.resolve(),
-  ]);
-}
 
-export async function clearTokens(): Promise<void> {
-  tokens = { accessToken: null, refreshToken: null };
+  return cache;
+};
+
+/** Tokens actuales sin tocar el disco. `null` si no hay sesión. */
+export const getTokens = (): SessionTokens | null => cache;
+
+export const getAccessToken = (): string | null => cache?.accessToken ?? null;
+
+export const getRefreshToken = (): string | null => cache?.refreshToken ?? null;
+
+/** Guarda los tokens en memoria y en disco. */
+export const setTokens = async (tokens: SessionTokens): Promise<void> => {
+  cache = tokens;
   hydrated = true;
-  await removeItems([StorageKeys.accessToken, StorageKeys.refreshToken, StorageKeys.user]);
-}
+  await setItem(StorageKeys.accessToken, tokens.accessToken);
+  if (tokens.refreshToken) {
+    await setItem(StorageKeys.refreshToken, tokens.refreshToken);
+  }
+};
 
-export function onSessionExpired(listener: SessionExpiredListener): () => void {
+/** Borra los tokens de memoria y disco. No notifica a los listeners. */
+export const clearTokens = async (): Promise<void> => {
+  cache = null;
+  hydrated = true;
+  await removeItems([StorageKeys.accessToken, StorageKeys.refreshToken]);
+};
+
+/**
+ * Se suscribe al evento "la sesión murió y no se pudo renovar".
+ * Devuelve la función para desuscribirse.
+ */
+export const onSessionExpired = (listener: SessionExpiredListener): (() => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
-}
+};
 
-export function notifySessionExpired(): void {
+/** Lo dispara el interceptor HTTP cuando el refresh falla. */
+export const notifySessionExpired = (): void => {
   listeners.forEach((listener) => listener());
-}
+};

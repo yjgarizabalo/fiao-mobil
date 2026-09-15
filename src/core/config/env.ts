@@ -1,53 +1,75 @@
-// Único punto de lectura de `process.env`. El resto de la app importa `env`
-// de aquí — nunca leas EXPO_PUBLIC_* directo en otro archivo, porque entonces
-// cada uno inventa su propio default y su propia validación (como pasaba antes
-// entre config/environment.ts y los distintos servicios).
+/**
+ * Configuración de entorno, validada una sola vez al arrancar.
+ *
+ * A diferencia del v1 —donde cada helper leía `process.env` y aplicaba su
+ * propio valor por defecto— aquí las variables se leen, se validan y se
+ * congelan en un único objeto tipado. Si falta algo crítico, la app avisa
+ * de inmediato en desarrollo en vez de fallar más tarde con un 404 raro.
+ */
 
 export type Environment = 'local' | 'dev' | 'prd';
 
-export interface EnvConfig {
-  environment: Environment;
-  apiBaseUrl: string;
-  authPrefix: string;
-  timeoutMs: number;
-  isProduction: boolean;
-  isDebug: boolean;
+interface EnvConfig {
+  /** Entorno activo. */
+  readonly environment: Environment;
+  /** Base del API, sin barra final. Ej: `http://192.168.1.17:3000/api` */
+  readonly apiBaseUrl: string;
+  /** Prefijo de las rutas de autenticación. Ej: `/auth` */
+  readonly authPrefix: string;
+  /** Timeout de las peticiones HTTP, en ms. */
+  readonly timeoutMs: number;
+  /** `true` solo en el entorno de producción. */
+  readonly isProduction: boolean;
+  /** `true` cuando conviene mostrar logs de red y avisos de desarrollo. */
+  readonly isDebug: boolean;
 }
 
-function parseEnvironment(value: string | undefined): Environment {
+const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+
+const ensureLeadingSlash = (value: string) =>
+  value.startsWith('/') ? value : `/${value}`;
+
+const parseEnvironment = (value: string | undefined): Environment => {
   if (value === 'dev' || value === 'prd' || value === 'local') return value;
   return 'local';
-}
+};
 
-function parseTimeout(value: string | undefined): number {
-  const parsed = value ? Number(value) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20000;
-}
+const parseTimeout = (value: string | undefined): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20_000;
+};
 
-function buildEnv(): EnvConfig {
-  const environment = parseEnvironment(process.env.EXPO_PUBLIC_ENVIRONMENT);
-  const apiBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api').replace(/\/+$/, '');
-  const authPrefixRaw = process.env.EXPO_PUBLIC_API_AUTH_PREFIX ?? '/auth';
-  const authPrefix = authPrefixRaw.startsWith('/') ? authPrefixRaw : `/${authPrefixRaw}`;
-  const timeoutMs = parseTimeout(process.env.EXPO_PUBLIC_API_TIMEOUT_MS);
-  const isProduction = environment === 'prd';
+const readApiBaseUrl = (): string => {
+  const raw = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-  if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
-    console.warn('[env] EXPO_PUBLIC_API_BASE_URL no está definida, usando http://localhost:3000/api');
-  } else if (environment !== 'prd' && /localhost|127\.0\.0\.1/.test(apiBaseUrl)) {
+  if (!raw || raw.trim().length === 0) {
+    // No lanzamos una excepción para no dejar la app en pantalla blanca:
+    // se avisa fuerte y se usa un valor que hace evidente el problema.
+    console.error(
+      '[env] Falta EXPO_PUBLIC_API_BASE_URL. Copia .env.example a .env.local y ' +
+        'ejecuta `npm run env:local`. En un celular físico debe ser la IP LAN ' +
+        'de tu máquina, no localhost.',
+    );
+    return 'http://localhost:3000/api';
+  }
+
+  if (__DEV__ && /localhost|127\.0\.0\.1/.test(raw)) {
     console.warn(
-      '[env] EXPO_PUBLIC_API_BASE_URL apunta a localhost: un celular físico o el simulador de iOS no lo alcanzan. Usa la IP LAN de tu máquina.'
+      '[env] EXPO_PUBLIC_API_BASE_URL apunta a localhost. Un celular físico o ' +
+        'el simulador de iOS no alcanzan el localhost del PC: usa tu IP LAN.',
     );
   }
 
-  return {
-    environment,
-    apiBaseUrl,
-    authPrefix,
-    timeoutMs,
-    isProduction,
-    isDebug: __DEV__ && !isProduction,
-  };
-}
+  return stripTrailingSlash(raw.trim());
+};
 
-export const env: EnvConfig = buildEnv();
+const environment = parseEnvironment(process.env.EXPO_PUBLIC_ENVIRONMENT);
+
+export const env: EnvConfig = Object.freeze({
+  environment,
+  apiBaseUrl: readApiBaseUrl(),
+  authPrefix: ensureLeadingSlash(process.env.EXPO_PUBLIC_API_AUTH_PREFIX ?? '/auth'),
+  timeoutMs: parseTimeout(process.env.EXPO_PUBLIC_API_TIMEOUT_MS),
+  isProduction: environment === 'prd',
+  isDebug: __DEV__ && environment !== 'prd',
+});

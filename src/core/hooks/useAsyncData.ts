@@ -1,71 +1,109 @@
-// Máquina de estados para "traer un recurso y mostrarlo": idle → loading → success | error,
-// más un `isRefreshing` aparte para pull-to-refresh (los datos viejos se quedan visibles
-// mientras se recarga). Descarta resultados obsoletos si el fetch cambió de parámetros o el
-// componente se desmontó antes de que la petición volviera.
+/**
+ * Carga de datos asíncronos con estados explícitos.
+ *
+ * El v1 mezclaba `isLoading`, `pageLoading`, `initialLoadDone` y refs en cada
+ * pantalla. Aquí hay una máquina de estados clara —`idle → loading → success |
+ * error`— más `refreshing` para el pull-to-refresh, que es un estado distinto:
+ * durante un refresh la lista sigue visible.
+ *
+ * También cancela: si la pantalla se desmonta o llega una carga más reciente,
+ * el resultado viejo se descarta en vez de sobrescribir el estado.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toAppError } from '../errors/AppError';
 
-type Status = 'idle' | 'loading' | 'success' | 'error';
+import { type AppError, toAppError } from '../errors/AppError';
 
-interface UseAsyncDataOptions {
-  enabled?: boolean;
-  deps?: unknown[];
+export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
+
+export interface UseAsyncDataResult<T> {
+  data: T | null;
+  status: AsyncStatus;
+  error: AppError | null;
+  /** Primera carga en curso (no hay datos que mostrar todavía). */
+  isLoading: boolean;
+  /** Recarga con datos ya en pantalla (pull-to-refresh). */
+  isRefreshing: boolean;
+  /** Vuelve a ejecutar la carga mostrando el skeleton. */
+  reload: () => Promise<void>;
+  /** Vuelve a ejecutar la carga manteniendo los datos visibles. */
+  refresh: () => Promise<void>;
+  /** Actualiza los datos en local, sin ir al servidor (updates optimistas). */
+  setData: (updater: T | ((previous: T | null) => T | null)) => void;
 }
 
-export function useAsyncData<T>(fetcher: () => Promise<T>, options: UseAsyncDataOptions = {}) {
-  const { enabled = true, deps = [] } = options;
-  const [data, setData] = useState<T | undefined>(undefined);
-  const [status, setStatus] = useState<Status>('idle');
-  const [error, setError] = useState<ReturnType<typeof toAppError> | undefined>(undefined);
+export interface UseAsyncDataOptions {
+  /** Si es `false`, no carga hasta que pase a `true`. Útil si falta un id. */
+  enabled?: boolean;
+  /** Dependencias que, al cambiar, disparan una recarga. */
+  deps?: readonly unknown[];
+}
+
+export const useAsyncData = <T>(
+  fetcher: () => Promise<T>,
+  { enabled = true, deps = [] }: UseAsyncDataOptions = {},
+): UseAsyncDataResult<T> => {
+  const [data, setDataState] = useState<T | null>(null);
+  const [status, setStatus] = useState<AsyncStatus>(enabled ? 'loading' : 'idle');
+  const [error, setError] = useState<AppError | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const runIdRef = useRef(0);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
+
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-    },
-    []
-  );
-
-  const run = useCallback(
-    async (mode: 'reload' | 'refresh') => {
-      if (!enabled) return;
-      const runId = ++runIdRef.current;
-
-      if (mode === 'reload') {
-        setStatus('loading');
-        setError(undefined);
-      } else {
-        setIsRefreshing(true);
-      }
-
-      try {
-        const result = await fetcher();
-        if (!mountedRef.current || runId !== runIdRef.current) return;
-        setData(result);
-        setStatus('success');
-      } catch (caught) {
-        const appError = toAppError(caught);
-        if (!mountedRef.current || runId !== runIdRef.current) return;
-        if (appError.code !== 'CANCELLED') {
-          setError(appError);
-          setStatus('error');
-        }
-      } finally {
-        if (mountedRef.current && runId === runIdRef.current) {
-          setIsRefreshing(false);
-        }
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enabled, ...deps]
-  );
+  /** Cada ejecución recibe un id; solo la más reciente puede escribir estado. */
+  const runIdRef = useRef(0);
 
   useEffect(() => {
-    run('reload');
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const run = useCallback(async (mode: 'load' | 'refresh') => {
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
+
+    if (mode === 'refresh') setIsRefreshing(true);
+    else setStatus('loading');
+    setError(null);
+
+    try {
+      const result = await fetcherRef.current();
+      if (!mountedRef.current || runIdRef.current !== runId) return;
+      setDataState(result);
+      setStatus('success');
+    } catch (caught) {
+      if (!mountedRef.current || runIdRef.current !== runId) return;
+      const appError = toAppError(caught);
+      // Una cancelación no es un error que deba pintarse en pantalla.
+      if (appError.code === 'CANCELLED') return;
+      setError(appError);
+      setStatus('error');
+    } finally {
+      if (mountedRef.current && runIdRef.current === runId && mode === 'refresh') {
+        setIsRefreshing(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      setStatus('idle');
+      return;
+    }
+    void run('load');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, ...deps]);
+  }, [enabled, run, ...deps]);
+
+  const setData = useCallback((updater: T | ((previous: T | null) => T | null)) => {
+    setDataState((previous) =>
+      typeof updater === 'function'
+        ? (updater as (p: T | null) => T | null)(previous)
+        : updater,
+    );
+  }, []);
 
   return {
     data,
@@ -73,8 +111,8 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, options: UseAsyncData
     error,
     isLoading: status === 'loading',
     isRefreshing,
-    reload: () => run('reload'),
-    refresh: () => run('refresh'),
+    reload: useCallback(() => run('load'), [run]),
+    refresh: useCallback(() => run('refresh'), [run]),
     setData,
   };
-}
+};

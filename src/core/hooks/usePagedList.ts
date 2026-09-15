@@ -1,97 +1,151 @@
-// Scroll infinito sobre un endpoint paginado. Reemplaza los dos patrones de paginación
-// que convivían en v1 (botones de página en unas listas, "cargar más" con refs propias en
-// otras). Dedupe por `id` al concatenar páginas por si el backend devuelve una fila
-// repetida entre dos páginas (puede pasar si se crea un registro entre una carga y otra).
+/**
+ * Lista paginada con scroll infinito.
+ *
+ * El v1 tenía dos implementaciones distintas de paginación (botones de página
+ * en clientes, "cargar más" en negocios) con su propio juego de refs. Aquí hay
+ * una sola, y expone justo lo que `FlatList` necesita:
+ * `onEndReached={loadMore}` y `refreshing`/`onRefresh`.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toAppError } from '../errors/AppError';
-import { DEFAULT_PAGE_SIZE, hasNextPage, Page, PaginationMeta } from '../http/payload';
 
-interface UsePagedListOptions {
+import { type AppError, toAppError } from '../errors/AppError';
+import { DEFAULT_PAGE_SIZE, type Page } from '../http/payload';
+
+export interface UsePagedListResult<T> {
+  items: T[];
+  /** Primera carga: hay que mostrar skeleton. */
+  isLoading: boolean;
+  /** Pull-to-refresh: la lista sigue visible. */
+  isRefreshing: boolean;
+  /** Cargando la siguiente página: spinner en el pie de la lista. */
+  isLoadingMore: boolean;
+  error: AppError | null;
+  hasMore: boolean;
+  total: number;
+  /** Recarga desde la página 1 mostrando skeleton. */
+  reload: () => Promise<void>;
+  /** Recarga desde la página 1 sin ocultar la lista. */
+  refresh: () => Promise<void>;
+  /** Carga la página siguiente. Segura de llamar varias veces. */
+  loadMore: () => Promise<void>;
+  /** Muta la lista en local (updates optimistas). */
+  setItems: (updater: (previous: T[]) => T[]) => void;
+}
+
+export interface UsePagedListOptions {
   pageSize?: number;
   enabled?: boolean;
-  deps?: unknown[];
+  deps?: readonly unknown[];
 }
 
-interface WithId {
-  id: string | number;
-}
-
-function mergeUnique<T extends WithId>(previous: T[], next: T[]): T[] {
-  const seen = new Set(previous.map((item) => item.id));
-  return [...previous, ...next.filter((item) => !seen.has(item.id))];
-}
-
-export function usePagedList<T extends WithId>(
+export const usePagedList = <T>(
   fetchPage: (page: number, limit: number) => Promise<Page<T>>,
-  options: UsePagedListOptions = {}
-) {
-  const { pageSize = DEFAULT_PAGE_SIZE, enabled = true, deps = [] } = options;
-
-  const [items, setItems] = useState<T[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
+  { pageSize = DEFAULT_PAGE_SIZE, enabled = true, deps = [] }: UsePagedListOptions = {},
+): UsePagedListResult<T> => {
+  const [items, setItemsState] = useState<T[]>([]);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<ReturnType<typeof toAppError> | undefined>(undefined);
+  const [error, setError] = useState<AppError | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
+  const fetchRef = useRef(fetchPage);
+  fetchRef.current = fetchPage;
+
+  const mountedRef = useRef(true);
   const runIdRef = useRef(0);
+  /** Evita disparar dos "cargar más" a la vez (FlatList llama de más). */
   const loadingMoreRef = useRef(false);
 
-  const load = useCallback(
-    async (mode: 'reload' | 'refresh') => {
-      if (!enabled) return;
-      const runId = ++runIdRef.current;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-      if (mode === 'reload') {
-        setIsLoading(true);
-        setError(undefined);
-      } else {
-        setIsRefreshing(true);
-      }
+  const loadFirstPage = useCallback(
+    async (mode: 'load' | 'refresh') => {
+      const runId = runIdRef.current + 1;
+      runIdRef.current = runId;
+
+      if (mode === 'refresh') setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
 
       try {
-        const result = await fetchPage(1, pageSize);
-        if (runId !== runIdRef.current) return;
-        setItems(result.items);
-        setMeta(result.meta);
+        const result = await fetchRef.current(1, pageSize);
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+        setItemsState(result.items);
+        setPage(result.meta.page);
+        setTotalPages(result.meta.totalPages);
+        setTotal(result.meta.total);
       } catch (caught) {
-        if (runId !== runIdRef.current) return;
-        setError(toAppError(caught));
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+        const appError = toAppError(caught);
+        if (appError.code === 'CANCELLED') return;
+        setError(appError);
+        setItemsState([]);
       } finally {
-        if (runId === runIdRef.current) {
+        if (mountedRef.current && runIdRef.current === runId) {
           setIsLoading(false);
           setIsRefreshing(false);
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enabled, pageSize, ...deps]
+    [pageSize],
   );
 
-  useEffect(() => {
-    load('reload');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, pageSize, ...deps]);
-
   const loadMore = useCallback(async () => {
-    if (!enabled || !meta || loadingMoreRef.current || !hasNextPage(meta)) return;
+    if (loadingMoreRef.current || isLoading || isRefreshing) return;
+    if (page >= totalPages) return;
+
     loadingMoreRef.current = true;
     setIsLoadingMore(true);
-    const runId = runIdRef.current;
 
+    const nextPage = page + 1;
     try {
-      const nextPage = meta.page + 1;
-      const result = await fetchPage(nextPage, pageSize);
-      if (runId !== runIdRef.current) return;
-      setItems((previous) => mergeUnique(previous, result.items));
-      setMeta(result.meta);
+      const result = await fetchRef.current(nextPage, pageSize);
+      if (!mountedRef.current) return;
+      // Se concatena deduplicando por si el backend repite un registro entre
+      // páginas (pasa cuando alguien inserta datos mientras paginas).
+      setItemsState((previous) => {
+        const seen = new Set(
+          previous.map((item) => (item as { id?: string }).id).filter(Boolean),
+        );
+        const fresh = result.items.filter((item) => {
+          const id = (item as { id?: string }).id;
+          return id === undefined || !seen.has(id);
+        });
+        return [...previous, ...fresh];
+      });
+      setPage(result.meta.page);
+      setTotalPages(result.meta.totalPages);
+      setTotal(result.meta.total);
     } catch (caught) {
-      if (runId === runIdRef.current) setError(toAppError(caught));
+      // Un fallo al paginar no debe borrar lo que ya se ve: solo se registra.
+      if (mountedRef.current) setError(toAppError(caught));
     } finally {
       loadingMoreRef.current = false;
-      setIsLoadingMore(false);
+      if (mountedRef.current) setIsLoadingMore(false);
     }
-  }, [enabled, meta, fetchPage, pageSize]);
+  }, [isLoading, isRefreshing, page, totalPages, pageSize]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      setItemsState([]);
+      return;
+    }
+    void loadFirstPage('load');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, loadFirstPage, ...deps]);
+
+  const setItems = useCallback((updater: (previous: T[]) => T[]) => {
+    setItemsState(updater);
+  }, []);
 
   return {
     items,
@@ -99,11 +153,11 @@ export function usePagedList<T extends WithId>(
     isRefreshing,
     isLoadingMore,
     error,
-    hasMore: meta ? hasNextPage(meta) : false,
-    total: meta?.total ?? 0,
-    reload: () => load('reload'),
-    refresh: () => load('refresh'),
+    hasMore: page < totalPages,
+    total,
+    reload: useCallback(() => loadFirstPage('load'), [loadFirstPage]),
+    refresh: useCallback(() => loadFirstPage('refresh'), [loadFirstPage]),
     loadMore,
     setItems,
   };
-}
+};

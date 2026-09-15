@@ -1,7 +1,10 @@
-// El backend responde a veces `{ data, meta }` y a veces el recurso pelado (un array o
-// un objeto suelto), según el endpoint. En vez de repetir
-// `Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : []`
-// en cada context (como en v1), toda normalización pasa por estas tres funciones.
+/**
+ * Normalización de respuestas del backend.
+ *
+ * El API responde a veces `{ data, meta }` y a veces el recurso pelado. El v1
+ * repetía la misma cadena de comprobaciones en cada context; aquí se hace en
+ * un solo sitio y con tipos.
+ */
 
 export interface PaginationMeta {
   total: number;
@@ -15,47 +18,82 @@ export interface Page<T> {
   meta: PaginationMeta;
 }
 
+/** Envoltorio paginado tal como lo devuelve el backend. */
+interface RawEnvelope<T> {
+  data?: T[] | T;
+  meta?: Partial<PaginationMeta>;
+}
+
 export const DEFAULT_PAGE_SIZE = 10;
 
-export function toList<T>(payload: unknown): T[] {
+const buildMeta = (
+  raw: Partial<PaginationMeta> | undefined,
+  itemCount: number,
+  requestedPage: number,
+  requestedLimit: number,
+): PaginationMeta => {
+  const limit = raw?.limit ?? requestedLimit;
+  const page = raw?.page ?? requestedPage;
+  const total = raw?.total ?? itemCount;
+  const totalPages = raw?.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, limit)));
+  return { total, page, limit, totalPages };
+};
+
+/**
+ * Extrae la lista de una respuesta, sea `{ data: [...] }` o `[...]`.
+ * Nunca devuelve `undefined`: si la forma es inesperada, devuelve `[]`.
+ */
+export const toList = <T>(payload: unknown): T[] => {
   if (Array.isArray(payload)) return payload as T[];
-  if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
-    return (payload as { data: T[] }).data;
-  }
+  const envelope = payload as RawEnvelope<T> | null | undefined;
+  if (envelope && Array.isArray(envelope.data)) return envelope.data;
   return [];
-}
+};
 
-export function toPage<T>(payload: unknown, requestedPage: number, requestedLimit: number): Page<T> {
+/** Extrae lista + metadatos de paginación, completando los que falten. */
+export const toPage = <T>(
+  payload: unknown,
+  requestedPage = 1,
+  requestedLimit = DEFAULT_PAGE_SIZE,
+): Page<T> => {
   const items = toList<T>(payload);
-  const rawMeta =
-    payload && typeof payload === 'object' ? (payload as { meta?: Partial<PaginationMeta> }).meta : undefined;
+  const envelope = (Array.isArray(payload) ? undefined : payload) as
+    | RawEnvelope<T>
+    | undefined;
+  return {
+    items,
+    meta: buildMeta(envelope?.meta, items.length, requestedPage, requestedLimit),
+  };
+};
 
-  const limit = rawMeta?.limit ?? requestedLimit;
-  const page = rawMeta?.page ?? requestedPage;
-  const total = rawMeta?.total ?? items.length;
-  const totalPages = rawMeta?.totalPages ?? Math.max(1, Math.ceil(total / Math.max(limit, 1)));
-
-  return { items, meta: { total, page, limit, totalPages } };
-}
-
-export function toItem<T>(payload: unknown): T | null {
+/** Extrae un recurso único, sea `{ data: {...} }` o `{...}`. */
+export const toItem = <T>(payload: unknown): T | null => {
   if (payload === null || payload === undefined) return null;
-  if (typeof payload === 'object' && 'data' in (payload as Record<string, unknown>)) {
-    const data = (payload as { data: unknown }).data;
-    return (data ?? null) as T | null;
+  const envelope = payload as RawEnvelope<T>;
+  if (
+    typeof payload === 'object' &&
+    'data' in (payload as object) &&
+    envelope.data !== undefined &&
+    !Array.isArray(envelope.data)
+  ) {
+    return envelope.data as T;
   }
   return payload as T;
-}
+};
 
-export function hasNextPage(meta: PaginationMeta): boolean {
-  return meta.page < meta.totalPages;
-}
+/** `true` si quedan páginas por cargar. */
+export const hasNextPage = (meta: PaginationMeta | null): boolean =>
+  meta !== null && meta.page < meta.totalPages;
 
-export function toAmount(value: unknown): number {
+/**
+ * Convierte a número los importes que el backend manda como string
+ * (`balance: "15000.00"`). Devuelve 0 ante cualquier valor no numérico.
+ */
+export const toAmount = (value: unknown): number => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
-}
+};

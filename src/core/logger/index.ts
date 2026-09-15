@@ -1,12 +1,25 @@
-// Logger con niveles y redacción de secretos. Reemplaza los console.log sueltos de
-// utils/api.ts y authService.ts que imprimían el access token, el refresh token y
-// cuerpos de respuesta completos en cada petición — cualquiera con acceso a los logs
-// (Metro, Logcat, un crash reporter) podía leer credenciales de sesión ahí.
+/**
+ * Logger con niveles y redacción de datos sensibles.
+ *
+ * El v1 imprimía el access token, el refresh token y el cuerpo completo de
+ * cada respuesta en consola. Eso filtra credenciales a cualquier herramienta
+ * que capture logs. Aquí:
+ *  - en producción solo se emiten `warn` y `error`;
+ *  - todo objeto pasa por `redact()`, que enmascara llaves sensibles.
+ */
 import { env } from '../config/env';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-const SENSITIVE_KEYS = new Set([
+const LEVEL_WEIGHT: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+
+/** Llaves cuyo valor nunca debe aparecer completo en un log. */
+const SENSITIVE_KEYS = [
   'password',
   'newpassword',
   'confirmpassword',
@@ -16,54 +29,63 @@ const SENSITIVE_KEYS = new Set([
   'authorization',
   'x-refresh-token',
   'secret',
-]);
+];
 
-function maskValue(value: string): string {
+const minWeight = env.isDebug ? LEVEL_WEIGHT.debug : LEVEL_WEIGHT.warn;
+
+const maskValue = (value: unknown): string => {
+  if (typeof value !== 'string' || value.length === 0) return '***';
   if (value.length <= 8) return '***';
-  return `${value.slice(0, 4)}…${value.slice(-4)} (${value.length})`;
-}
+  return `${value.slice(0, 4)}…${value.slice(-4)} (len ${value.length})`;
+};
 
-export function redact(value: unknown, depth = 4): unknown {
-  if (depth <= 0 || value === null || value === undefined) return value;
+/** Copia el valor enmascarando cualquier llave sensible, a cualquier nivel. */
+export const redact = (value: unknown, depth = 0): unknown => {
+  if (depth > 4 || value === null || value === undefined) return value;
 
   if (Array.isArray(value)) {
-    const truncated = value.slice(0, 20).map((item) => redact(item, depth - 1));
-    return value.length > 20 ? [...truncated, `…${value.length - 20} más`] : truncated;
+    return value.slice(0, 20).map((item) => redact(item, depth + 1));
   }
 
   if (typeof value === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-        result[key] = typeof val === 'string' ? maskValue(val) : '***';
-      } else {
-        result[key] = redact(val, depth - 1);
-      }
+    const source = value as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+    for (const key of Object.keys(source)) {
+      output[key] = SENSITIVE_KEYS.includes(key.toLowerCase())
+        ? maskValue(source[key])
+        : redact(source[key], depth + 1);
     }
-    return result;
+    return output;
   }
 
   return value;
-}
+};
 
-function shouldLog(level: LogLevel): boolean {
-  if (env.isDebug) return true;
-  return level === 'warn' || level === 'error';
-}
+const emit = (level: LogLevel, scope: string, message: string, meta?: unknown) => {
+  if (LEVEL_WEIGHT[level] < minWeight) return;
 
-export function createLogger(scope: string) {
-  const log = (level: LogLevel, ...args: unknown[]) => {
-    if (!shouldLog(level)) return;
-    const prefix = `[${scope}]`;
-    const method = level === 'debug' ? 'log' : level;
-    // eslint-disable-next-line no-console -- este es el único punto autorizado a usar console.*
-    console[method](prefix, ...args);
-  };
+  const prefix = `[${scope}]`;
+  const payload = meta === undefined ? undefined : redact(meta);
 
-  return {
-    debug: (...args: unknown[]) => log('debug', ...args),
-    info: (...args: unknown[]) => log('info', ...args),
-    warn: (...args: unknown[]) => log('warn', ...args),
-    error: (...args: unknown[]) => log('error', ...args),
-  };
-}
+  // eslint-disable-next-line no-console
+  const sink = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+
+  if (payload === undefined) sink(prefix, message);
+  else sink(prefix, message, payload);
+};
+
+/**
+ * Crea un logger con ámbito fijo.
+ *
+ * @example
+ * const log = createLogger('http');
+ * log.debug('GET /debtors', { page: 1 });
+ */
+export const createLogger = (scope: string) => ({
+  debug: (message: string, meta?: unknown) => emit('debug', scope, message, meta),
+  info: (message: string, meta?: unknown) => emit('info', scope, message, meta),
+  warn: (message: string, meta?: unknown) => emit('warn', scope, message, meta),
+  error: (message: string, meta?: unknown) => emit('error', scope, message, meta),
+});
+
+export type Logger = ReturnType<typeof createLogger>;

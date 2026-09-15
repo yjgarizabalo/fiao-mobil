@@ -1,94 +1,146 @@
-// Traducción de las respuestas del backend a los modelos de dominio. Es el único lugar
-// que tolera las imprecisiones del API: montos que llegan como string, nombres de campo
-// que cambian según el endpoint, campos que a veces no vienen.
+/**
+ * Mapeo de las respuestas del backend a los modelos del dominio.
+ *
+ * Es la frontera del sistema: aquí —y solo aquí— se toleran las rarezas del
+ * API (importes como string `"15000.00"`, campos que a veces no vienen,
+ * nombres alternativos). A partir de este punto el resto de la app trabaja con
+ * datos limpios y tipados, así que ninguna pantalla necesita `Number(x)` ni
+ * `?? 0` defensivos.
+ */
 import { toAmount } from '../core/http/payload';
-import { isDocumentType } from './constants';
-import { Business, Debt, Debtor, Payment, User } from './models';
+import {
+  type DebtStatus,
+  type DocumentType,
+  type PaymentMethod,
+  type TransactionType,
+  isDocumentType,
+} from './constants';
+import type { Business, Debt, Debtor, Payment, User } from './models';
 
-export function mapUser(raw: Record<string, unknown>): User {
-  const documentType = raw.documentType;
+type Raw = Record<string, unknown>;
+
+const asString = (value: unknown, fallback = ''): string =>
+  typeof value === 'string' ? value : typeof value === 'number' ? String(value) : fallback;
+
+const asBoolean = (value: unknown): boolean => value === true || value === 'true';
+
+const asDocumentType = (value: unknown): DocumentType => {
+  const raw = asString(value).toUpperCase();
+  return isDocumentType(raw) ? raw : 'CC';
+};
+
+const asPaymentMethod = (value: unknown): PaymentMethod => {
+  const raw = asString(value).toUpperCase();
+  return raw === 'TRANSFER' || raw === 'CARD' ? raw : 'CASH';
+};
+
+const asTransactionType = (value: unknown): TransactionType =>
+  asString(value).toUpperCase() === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'PAYMENT';
+
+const asDebtStatus = (value: unknown): DebtStatus => {
+  const raw = asString(value).toUpperCase();
+  if (raw === 'PAID' || raw === 'PARTIAL') return raw;
+  return 'OPEN';
+};
+
+/* ── Usuario ──────────────────────────────────────────────────────────────── */
+
+export const mapUser = (raw: unknown): User => {
+  const data = (raw ?? {}) as Raw;
   return {
-    id: String(raw.id),
-    email: String(raw.email ?? ''),
-    name: typeof raw.name === 'string' ? raw.name : undefined,
-    firstName: typeof raw.firstName === 'string' ? raw.firstName : undefined,
-    lastName: typeof raw.lastName === 'string' ? raw.lastName : undefined,
-    documentType: typeof documentType === 'string' && isDocumentType(documentType) ? documentType : undefined,
-    documentNumber: typeof raw.documentNumber === 'string' ? raw.documentNumber : undefined,
-    phone: typeof raw.phone === 'string' ? raw.phone : undefined,
-    role: typeof raw.role === 'string' ? raw.role : undefined,
+    id: asString(data.id),
+    email: asString(data.email),
+    name: data.name === undefined ? undefined : asString(data.name),
+    firstName: data.firstName === undefined ? undefined : asString(data.firstName),
+    lastName: data.lastName === undefined ? undefined : asString(data.lastName),
+    documentType: data.documentType === undefined ? undefined : asDocumentType(data.documentType),
+    documentNumber:
+      data.documentNumber === undefined ? undefined : asString(data.documentNumber),
+    phone: data.phone === undefined ? undefined : asString(data.phone),
+    role: data.role === undefined ? undefined : asString(data.role),
   };
-}
+};
 
-export function mapBusiness(raw: Record<string, unknown>): Business {
+/* ── Negocio ──────────────────────────────────────────────────────────────── */
+
+export const mapBusiness = (raw: unknown): Business => {
+  const data = (raw ?? {}) as Raw;
   return {
-    id: String(raw.id),
-    name: String(raw.name ?? ''),
-    address: String(raw.address ?? ''),
-    currency: typeof raw.currency === 'string' ? raw.currency : undefined,
+    id: asString(data.id),
+    name: asString(data.name, 'Sin nombre'),
+    address: asString(data.address),
+    currency: data.currency === undefined ? undefined : asString(data.currency),
   };
-}
+};
 
-export function mapDebtor(raw: Record<string, unknown>, businessId?: string): Debtor {
-  const documentType = raw.documentType;
-  const balance = toAmount(raw.balance);
-  const totalBalance = raw.totalBalance !== undefined ? toAmount(raw.totalBalance) : undefined;
+/* ── Cliente / deudor ─────────────────────────────────────────────────────── */
+
+export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
+  const data = (raw ?? {}) as Raw;
+  const balance = toAmount(data.balance);
+  const totalBalance = data.totalBalance === undefined ? undefined : toAmount(data.totalBalance);
 
   return {
-    id: String(raw.id),
-    name: String(raw.name ?? ''),
-    documentType: typeof documentType === 'string' && isDocumentType(documentType) ? documentType : 'CC',
-    documentNumber: String(raw.documentNumber ?? ''),
-    phone: String(raw.phone ?? ''),
+    id: asString(data.id),
+    name: asString(data.name, 'Sin nombre'),
+    documentType: asDocumentType(data.documentType),
+    documentNumber: asString(data.documentNumber),
+    phone: asString(data.phone),
     balance,
     totalBalance,
-    hasPendingDebt: typeof raw.hasPendingDebt === 'boolean' ? raw.hasPendingDebt : (totalBalance ?? balance) > 0,
-    businessId: typeof raw.businessId === 'string' ? raw.businessId : businessId,
+    // Si el backend no manda la bandera, se deduce del saldo.
+    hasPendingDebt:
+      data.hasPendingDebt === undefined
+        ? balance > 0 || (totalBalance ?? 0) > 0
+        : asBoolean(data.hasPendingDebt),
+    businessId: asString(data.businessId) || businessId,
   };
-}
+};
 
-// Los pagos globales (`POST /payments/global`) reparten el monto entre varias deudas y
-// el backend puede devolver el monto aplicado a cada una como `appliedAmount` en vez de
-// `amount`.
-export function mapPayment(raw: Record<string, unknown>, debtId?: string): Payment {
+/* ── Pago ─────────────────────────────────────────────────────────────────── */
+
+export const mapPayment = (raw: unknown, debtId = ''): Payment => {
+  const data = (raw ?? {}) as Raw;
   return {
-    id: String(raw.id),
-    debtId: String(raw.debtId ?? debtId ?? ''),
-    amount: toAmount(raw.amount ?? raw.appliedAmount),
-    method: (raw.method as Payment['method']) ?? 'CASH',
-    type: String(raw.type ?? 'PAYMENT'),
-    note: typeof raw.note === 'string' ? raw.note : '',
-    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : (raw.paymentDate as string | undefined),
-    totalAmount: raw.totalAmount !== undefined ? toAmount(raw.totalAmount) : undefined,
-    isGlobalSummary: raw.isGlobalSummary === true,
+    id: asString(data.id),
+    debtId: asString(data.debtId, debtId),
+    // El backend usa `appliedAmount` en los pagos de un grupo global.
+    amount: toAmount(data.amount ?? data.appliedAmount),
+    method: asPaymentMethod(data.method),
+    type: asTransactionType(data.type),
+    note: asString(data.note),
+    createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
+    totalAmount: data.totalAmount === undefined ? undefined : toAmount(data.totalAmount),
   };
-}
+};
 
-export function mapDebt(raw: Record<string, unknown>, businessId?: string): Debt {
-  const amount = toAmount(raw.amount);
-  const payments = Array.isArray(raw.payments)
-    ? (raw.payments as Record<string, unknown>[]).map((payment) => mapPayment(payment, String(raw.id)))
+/* ── Deuda ────────────────────────────────────────────────────────────────── */
+
+export const mapDebt = (raw: unknown, businessId = ''): Debt => {
+  const data = (raw ?? {}) as Raw;
+  const id = asString(data.id);
+  const amount = toAmount(data.amount);
+  const payments = Array.isArray(data.payments)
+    ? data.payments.map((payment) => mapPayment(payment, id))
     : [];
-  const paidSoFar = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const remainingAmount =
-    raw.remainingAmount !== undefined
-      ? toAmount(raw.remainingAmount)
-      : raw.balance !== undefined
-        ? toAmount(raw.balance)
-        : Math.max(amount - paidSoFar, 0);
 
-  const status = (raw.status as Debt['status']) ?? (remainingAmount <= 0 ? 'PAID' : paidSoFar > 0 ? 'PARTIAL' : 'OPEN');
+  // `remainingAmount` y `balance` son dos nombres para lo mismo según el
+  // endpoint; si no viene ninguno, se calcula con los pagos.
+  const paid = payments.reduce((total, payment) => total + payment.amount, 0);
+  const remainingRaw = data.remainingAmount ?? data.balance;
+  const remainingAmount =
+    remainingRaw === undefined ? Math.max(0, amount - paid) : toAmount(remainingRaw);
 
   return {
-    id: String(raw.id),
-    businessId: String(raw.businessId ?? businessId ?? ''),
-    debtorId: String(raw.debtorId ?? ''),
+    id,
+    businessId: asString(data.businessId, businessId),
+    debtorId: asString(data.debtorId),
     amount,
     remainingAmount,
-    description: typeof raw.description === 'string' ? raw.description : '',
-    dueDate: String(raw.dueDate ?? ''),
-    status,
-    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
+    description: asString(data.description),
+    dueDate: asString(data.dueDate),
+    status: asDebtStatus(data.status),
+    createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
     payments,
   };
-}
+};

@@ -1,121 +1,190 @@
-// Formato de dinero, fecha y texto en un solo lugar. Antes formatCurrency/getInitials/
-// getAvatarColor/normalizeText estaban copiadas en 4 pantallas distintas (clientList,
-// clients, clientDetail, businessList/businesses) y cada una construía su propio
-// `Intl.NumberFormat` en cada render; aquí se construyen una sola vez.
+/**
+ * Formateo de dinero, fechas, nombres y teléfonos.
+ *
+ * En el v1 `formatCurrency`, `getInitials`, `getAvatarColor` y `normalizeText`
+ * estaban copiadas en cuatro archivos. Aquí viven una sola vez.
+ */
+import { palette } from '../../theme/tokens';
 
-const moneyFormatter = new Intl.NumberFormat('es-CO', {
+const LOCALE = 'es-CO';
+const CURRENCY = 'COP';
+
+/**
+ * `Intl.NumberFormat` es costoso de construir, así que se crean una vez y se
+ * reutilizan. En listas largas esto se nota.
+ */
+const currencyFormatter = new Intl.NumberFormat(LOCALE, {
   style: 'currency',
-  currency: 'COP',
+  currency: CURRENCY,
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 });
 
-const numberFormatter = new Intl.NumberFormat('es-CO');
+const compactFormatter = new Intl.NumberFormat(LOCALE, {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
 
-export function formatMoney(value: number): string {
-  return moneyFormatter.format(Number.isFinite(value) ? value : 0);
-}
+const plainNumberFormatter = new Intl.NumberFormat(LOCALE, {
+  maximumFractionDigits: 0,
+});
 
-export function formatNumber(value: number): string {
-  return numberFormatter.format(Number.isFinite(value) ? value : 0);
-}
+/** `15000` → `"$ 15.000"` */
+export const formatMoney = (value: number): string =>
+  currencyFormatter.format(Number.isFinite(value) ? value : 0);
 
-// "1,5 M" en vez de "$1.500.000" para espacios chicos (tiles, headers).
-export function formatMoneyCompact(value: number): string {
-  const amount = Number.isFinite(value) ? value : 0;
-  if (Math.abs(amount) < 100000) return formatMoney(amount);
-  const millions = amount / 1_000_000;
-  const rounded = Math.round(millions * 10) / 10;
-  return `${rounded.toString().replace('.', ',')} M`;
-}
+/** `15000` → `"15.000"` (sin símbolo, para inputs). */
+export const formatNumber = (value: number): string =>
+  plainNumberFormatter.format(Number.isFinite(value) ? value : 0);
 
-export function digitsOnly(value: string): string {
-  return value.replace(/[^0-9]/g, '');
-}
+/** `1500000` → `"1,5 M"`. Para tarjetas de resumen donde el espacio manda. */
+export const formatMoneyCompact = (value: number): string => {
+  if (Math.abs(value) < 100_000) return formatMoney(value);
+  return `$ ${compactFormatter.format(value)}`;
+};
 
-export function parseMoney(value: string): number {
-  const parsed = Number(digitsOnly(value));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+/** Deja solo dígitos: para parsear lo que el usuario escribe en un monto. */
+export const digitsOnly = (value: string): string => value.replace(/\D+/g, '');
 
-const dateFormatter = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
-const dateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
-  day: 'numeric',
+/** `"$ 15.000"` → `15000` */
+export const parseMoney = (value: string): number => {
+  const digits = digitsOnly(value);
+  return digits.length === 0 ? 0 : Number(digits);
+};
+
+/* ── Fechas ───────────────────────────────────────────────────────────────── */
+
+const dateFormatter = new Intl.DateTimeFormat(LOCALE, {
+  day: '2-digit',
   month: 'short',
   year: 'numeric',
-  hour: 'numeric',
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat(LOCALE, {
+  day: '2-digit',
+  month: 'short',
+  hour: '2-digit',
   minute: '2-digit',
 });
 
-export function formatDate(value: string | Date): string {
-  return dateFormatter.format(new Date(value));
-}
+const parseDate = (value: string | number | Date | null | undefined): Date | null => {
+  if (value === null || value === undefined) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
-export function formatDateTime(value: string | Date): string {
-  return dateTimeFormatter.format(new Date(value));
-}
+/** `"2026-01-15"` → `"15 ene 2026"`. Cadena vacía si la fecha no es válida. */
+export const formatDate = (value: string | number | Date | null | undefined): string => {
+  const date = parseDate(value);
+  return date ? dateFormatter.format(date) : '';
+};
 
-export function daysUntil(value: string | Date): number {
-  const target = new Date(value);
-  target.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
+/** `"2026-01-15T10:30"` → `"15 ene, 10:30"` */
+export const formatDateTime = (
+  value: string | number | Date | null | undefined,
+): string => {
+  const date = parseDate(value);
+  return date ? dateTimeFormatter.format(date) : '';
+};
 
-export function formatRelativeDate(value: string | Date): string {
-  const diff = daysUntil(value);
-  if (diff === 0) return 'Hoy';
-  if (diff === -1) return 'Ayer';
-  if (diff === 1) return 'Mañana';
-  if (diff < 0 && diff >= -6) return `Hace ${Math.abs(diff)} días`;
-  if (diff > 0 && diff <= 6) return `En ${diff} días`;
-  return formatDate(value);
-}
+/**
+ * Fecha en lenguaje natural: `"Hoy"`, `"Ayer"`, `"Hace 3 días"`, y a partir de
+ * una semana la fecha corta. Es lo que hace que un extracto se sienta humano.
+ */
+export const formatRelativeDate = (
+  value: string | number | Date | null | undefined,
+): string => {
+  const date = parseDate(value);
+  if (!date) return '';
 
-export function normalizeText(text: string): string {
-  return text
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round(
+    (startOfDay(new Date()).getTime() - startOfDay(date).getTime()) / 86_400_000,
+  );
+
+  if (days === 0) return 'Hoy';
+  if (days === 1) return 'Ayer';
+  if (days > 1 && days < 7) return `Hace ${days} días`;
+  if (days === -1) return 'Mañana';
+  if (days < -1 && days > -7) return `En ${Math.abs(days)} días`;
+  return formatDate(date);
+};
+
+/** Días de diferencia respecto a hoy. Negativo = ya venció. */
+export const daysUntil = (value: string | number | Date | null | undefined): number | null => {
+  const date = parseDate(value);
+  if (!date) return null;
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round(
+    (startOfDay(date).getTime() - startOfDay(new Date()).getTime()) / 86_400_000,
+  );
+};
+
+/* ── Texto ────────────────────────────────────────────────────────────────── */
+
+/** Minúsculas y sin tildes: permite buscar "jose" y encontrar "José". */
+export const normalizeText = (value: string): string =>
+  value
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
-}
+    .replace(/[\u0300-\u036f]/g, '');
 
-export function getInitials(name: string): string {
-  return name
-    .trim()
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-}
+/** `"María José Pérez"` → `"MJ"` */
+export const getInitials = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return (words[0] ?? '').slice(0, 2).toUpperCase();
+  return `${words[0]?.[0] ?? ''}${words[1]?.[0] ?? ''}`.toUpperCase();
+};
 
-export function getFirstName(name: string): string {
-  return name.trim().split(' ')[0] ?? name;
-}
+/** Primer nombre, para saludos: `"María José Pérez"` → `"María"` */
+export const getFirstName = (name: string | undefined | null): string => {
+  if (!name) return '';
+  return name.trim().split(/\s+/)[0] ?? '';
+};
 
-export function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  const cut = text.slice(0, maxLength);
+/** Recorta con puntos suspensivos sin cortar a mitad de palabra. */
+export const truncate = (value: string, maxLength: number): string => {
+  if (value.length <= maxLength) return value;
+  const cut = value.slice(0, maxLength);
   const lastSpace = cut.lastIndexOf(' ');
-  return `${lastSpace > 0 ? cut.slice(0, lastSpace) : cut}…`;
-}
+  return `${lastSpace > maxLength * 0.6 ? cut.slice(0, lastSpace) : cut}…`;
+};
 
-// Formato colombiano de celular: "3001234567" → "300 123 4567".
-export function formatPhone(phone: string): string {
-  const digits = digitsOnly(phone);
-  if (digits.length !== 10) return phone;
+/** `"3001234567"` → `"300 123 4567"` (formato colombiano de celular). */
+export const formatPhone = (value: string): string => {
+  const digits = digitsOnly(value);
+  if (digits.length !== 10) return value;
   return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
-}
+};
 
-const AVATAR_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
+/* ── Avatares ─────────────────────────────────────────────────────────────── */
 
-export function getAvatarColor(name: string): string {
-  if (!name) return AVATAR_COLORS[0]!;
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]!;
-}
+/**
+ * Paleta de avatares. Los colores son de la misma familia visual que la marca
+ * para que una lista de clientes no parezca un arcoíris.
+ */
+const AVATAR_COLORS = [
+  palette.brand[500],
+  '#5B7CFA',
+  '#7C5CF5',
+  '#C4479B',
+  '#E0714A',
+  palette.warning[500],
+  '#0FA3A3',
+  '#3B82F6',
+] as const;
 
-export function pluralize(count: number, singular: string, plural: string = `${singular}s`): string {
-  return count === 1 ? singular : plural;
-}
+/** Color estable por nombre: el mismo cliente siempre tiene el mismo color. */
+export const getAvatarColor = (name: string): string => {
+  if (name.length === 0) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) % 2_147_483_647;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
+};
+
+/** Pluraliza sin repetir ternarios por toda la UI. */
+export const pluralize = (count: number, singular: string, plural?: string): string =>
+  `${formatNumber(count)} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;

@@ -1,25 +1,41 @@
-// Convierte cualquier error de axios/red en un AppError. Es el único sitio del código
-// que le importa la forma exacta del error de axios; todo lo demás solo ve AppError.
+/**
+ * Traducción de errores de axios al `AppError` de la aplicación.
+ */
 import axios from 'axios';
+
 import { AppError, codeFromStatus, isAppError } from '../errors/AppError';
 
-function firstMessage(value: unknown): string | undefined {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-  return undefined;
+/** Formas conocidas en las que el backend devuelve el detalle de un error. */
+interface ApiErrorBody {
+  message?: string | string[];
+  error?: string;
+  errors?: Record<string, string | string[]>;
+  statusCode?: number;
 }
 
-function extractFieldErrors(errors: unknown): Record<string, string> | undefined {
-  if (!errors || typeof errors !== 'object') return undefined;
-  const result: Record<string, string> = {};
-  for (const [field, value] of Object.entries(errors as Record<string, unknown>)) {
-    const message = firstMessage(value);
-    if (message) result[field] = message;
+const firstString = (value: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(value)) return value.find((item) => typeof item === 'string');
+  return typeof value === 'string' ? value : undefined;
+};
+
+/** Aplana `{ errors: { email: ['ya existe'] } }` a `{ email: 'ya existe' }`. */
+const parseFieldErrors = (
+  errors: ApiErrorBody['errors'],
+): Record<string, string> | undefined => {
+  if (!errors) return undefined;
+  const output: Record<string, string> = {};
+  for (const [field, value] of Object.entries(errors)) {
+    const message = firstString(value);
+    if (message) output[field] = message;
   }
-  return Object.keys(result).length > 0 ? result : undefined;
-}
+  return Object.keys(output).length > 0 ? output : undefined;
+};
 
-export function toHttpAppError(error: unknown): AppError {
+/**
+ * Convierte cualquier error de red/HTTP en un `AppError` con mensaje listo
+ * para mostrar. Respeta el mensaje del backend cuando viene y es legible.
+ */
+export const toHttpAppError = (error: unknown): AppError => {
   if (isAppError(error)) return error;
 
   if (axios.isCancel(error)) {
@@ -31,26 +47,24 @@ export function toHttpAppError(error: unknown): AppError {
       return new AppError('TIMEOUT', { cause: error });
     }
 
+    // Sin `response` significa que la petición nunca llegó al servidor.
     if (!error.response) {
       return new AppError('NETWORK', { cause: error });
     }
 
     const status = error.response.status;
+    const body = error.response.data as ApiErrorBody | undefined;
+    const backendMessage = firstString(body?.message) ?? body?.error;
     const code = codeFromStatus(status);
-    const body = error.response.data as
-      | { message?: string | string[]; error?: string; errors?: Record<string, string | string[]> }
-      | undefined;
-
-    const backendMessage = code === 'SERVER' ? undefined : firstMessage(body?.message) ?? body?.error;
-    const fieldErrors = extractFieldErrors(body?.errors);
 
     return new AppError(code, {
       status,
-      message: backendMessage,
-      fieldErrors,
       cause: error,
+      fieldErrors: parseFieldErrors(body?.errors),
+      // Para 5xx nunca mostramos el texto del servidor: suele ser un stack trace.
+      message: code === 'SERVER' ? undefined : backendMessage,
     });
   }
 
   return new AppError('UNKNOWN', { cause: error });
-}
+};
