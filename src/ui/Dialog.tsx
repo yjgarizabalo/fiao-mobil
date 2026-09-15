@@ -124,22 +124,26 @@ export const Dialog = ({
           ) : null}
 
           <View style={styles.actions}>
-            {cancelLabel ? (
-              <Button
-                label={cancelLabel}
-                variant="secondary"
-                onPress={handleCancel}
-                disabled={loading}
-                style={styles.actionButton}
-              />
-            ) : null}
+            {/* La acción principal va arriba y a todo el ancho: con dos
+                botones en una sola fila, una etiqueta larga como "Cerrar
+                sesión" quedaba apretada junto a "Cancelar" y quedaba difícil
+                de leer. Apilados, cada uno tiene todo el ancho de la tarjeta. */}
             <Button
               label={confirmLabel}
               variant={tone === 'danger' ? 'danger' : 'primary'}
               onPress={handleConfirm}
               loading={loading}
-              style={styles.actionButton}
+              fullWidth
             />
+            {cancelLabel ? (
+              <Button
+                label={cancelLabel}
+                variant="ghost"
+                onPress={handleCancel}
+                disabled={loading}
+                fullWidth
+              />
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -282,12 +286,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   actions: {
-    flexDirection: 'row',
     alignSelf: 'stretch',
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
     marginTop: theme.spacing.xs,
-  },
-  actionButton: {
-    flex: 1,
   },
 });

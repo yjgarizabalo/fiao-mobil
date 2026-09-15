@@ -69,12 +69,24 @@ export const authApi = {
     return mapUser(toItem(data));
   },
 
-  /** `POST /auth/logout` — invalida el refresh token en el servidor. */
+  /**
+   * `POST /auth/logout` — invalida el refresh token en el servidor.
+   *
+   * El body va como `{}`, no `null`: con `Content-Type: application/json`,
+   * axios serializa `null` al literal `"null"`, y el `body-parser` de Express
+   * (modo estricto) lo rechaza con un 400 porque no empieza por `{` ni `[` —
+   * nunca llega a tocar el controlador. `{}` es un objeto válido y además es
+   * justo lo que espera el DTO opcional del backend.
+   */
   logout: async (refreshToken: string): Promise<void> => {
-    await http.post(`${AUTH}/logout`, null, {
-      headers: { 'x-refresh-token': refreshToken },
-      ...skipAuthRefresh,
-    });
+    await http.post(
+      `${AUTH}/logout`,
+      {},
+      {
+        headers: { 'x-refresh-token': refreshToken },
+        ...skipAuthRefresh,
+      }
+    );
   },
 
   /** `PATCH /users/:id` — datos del perfil. */
