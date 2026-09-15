@@ -7,16 +7,8 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@/*": ["./"],
-      "@app/*": ["./app/*"],
-      "@/components/*": ["./components/*"],
-      "@/constants/*": ["./constants/*"],
-      "@/contexts/*": ["./contexts/*"],
-      "@/hooks/*": ["./hooks/*"],
-      "@/services/*": ["./services/*"],
-      "@/utils/*": ["./utils/*"],
-      "@/config/*": ["./config/*"],
-      "@/assets/*": ["./assets/*"]
+      "@/*": ["./src/*"],
+      "@app/*": ["./app/*"]
     }
   },
   "include": [
