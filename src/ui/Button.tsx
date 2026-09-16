@@ -12,7 +12,7 @@ import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-nativ
 
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

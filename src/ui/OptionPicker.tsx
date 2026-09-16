@@ -10,12 +10,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-import { haptics } from '../core/haptics';
+import { haptics } from '@/core/haptics';
 import { Divider } from './Layout';
 import { PressableScale } from './PressableScale';
 import { Sheet } from './Sheet';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export interface PickerOption<T extends string> {
   value: T;

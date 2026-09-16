@@ -9,7 +9,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { createLogger } from '../logger';
+import { createLogger } from '@/core/logger';
 
 const log = createLogger('storage');
 

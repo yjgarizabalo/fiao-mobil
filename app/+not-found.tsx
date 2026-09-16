@@ -6,8 +6,8 @@
  */
 import { router } from 'expo-router';
 
-import { routes } from '../src/core/navigation/routes';
-import { EmptyState, Screen } from '../src/ui';
+import { routes } from '@/core/navigation/routes';
+import { EmptyState, Screen } from '@/ui';
 
 export default function NotFoundScreen() {
   return (

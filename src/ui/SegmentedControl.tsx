@@ -13,9 +13,9 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-import { haptics } from '../core/haptics';
+import { haptics } from '@/core/haptics';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export interface SegmentOption<T extends string> {
   value: T;

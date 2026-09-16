@@ -4,7 +4,7 @@
  * En el v1 `formatCurrency`, `getInitials`, `getAvatarColor` y `normalizeText`
  * estaban copiadas en cuatro archivos. Aquí viven una sola vez.
  */
-import { palette } from '../../theme/tokens';
+import { palette } from '@/theme/tokens';
 
 const LOCALE = 'es-CO';
 const CURRENCY = 'COP';

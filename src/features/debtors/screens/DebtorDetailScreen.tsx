@@ -20,21 +20,23 @@ import { useCallback, useMemo, useState } from 'react';
 import { Linking, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { useAsyncData } from '../../../core/hooks/useAsyncData';
-import { formatMoney, formatPhone, formatRelativeDate } from '../../../core/utils/format';
+import { toAppError } from '@/core/errors/AppError';
+import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { formatMoney, formatPhone, formatRelativeDate } from '@/core/utils/format';
+import type { PaymentMethod } from '@/domain/constants';
 import {
   type Debt,
   type Debtor,
   buildMovements,
   summarizeDebts,
-} from '../../../domain/models';
-import { debtApi } from '../../debts/api/debtApi';
-import { AddDebtSheet } from '../../debts/components/AddDebtSheet';
-import { debtorApi } from '../../debtors/api/debtorApi';
-import { MovementRow } from '../../debtors/components/MovementRow';
-import { paymentApi } from '../../payments/api/paymentApi';
-import { RegisterPaymentSheet } from '../../payments/components/RegisterPaymentSheet';
+} from '@/domain/models';
+import { debtApi } from '@/features/debts/api/debtApi';
+import { AddDebtSheet } from '@/features/debts/components/AddDebtSheet';
+import { DebtDetailSheet } from '@/features/debts/components/DebtDetailSheet';
+import { debtorApi } from '@/features/debtors/api/debtorApi';
+import { MovementRow } from '@/features/debtors/components/MovementRow';
+import { paymentApi } from '@/features/payments/api/paymentApi';
+import { RegisterPaymentSheet } from '@/features/payments/components/RegisterPaymentSheet';
 import {
   AnimatedMoney,
   AppBar,
@@ -56,8 +58,8 @@ import {
   Text,
   useDialog,
   useToast,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 /** Movimientos que se muestran por página del extracto. */
 const MOVEMENTS_PAGE = 15;
@@ -77,8 +79,14 @@ export const DebtorDetailScreen = () => {
   const businessId = params.businessId ?? '';
 
   const [isDebtSheetOpen, setIsDebtSheetOpen] = useState(false);
-  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE);
+  /** Deuda abierta en la hoja de detalle. */
+  const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
+  /**
+   * A qué se abona: `'all'` reparte entre todas las deudas (`/payments/global`)
+   * y una deuda concreta abona solo a esa (`/payments`). `null` = hoja cerrada.
+   */
+  const [paymentTarget, setPaymentTarget] = useState<Debt | 'all' | null>(null);
 
   const detail = useAsyncData<DetailData>(
     async () => {
@@ -108,9 +116,17 @@ export const DebtorDetailScreen = () => {
   }, [detail.refresh]);
 
   const handleAddDebt = useCallback(
-    async ({ amount, description }: { amount: number; description: string }) => {
+    async ({
+      amount,
+      description,
+      dueDate,
+    }: {
+      amount: number;
+      description: string;
+      dueDate: string | undefined;
+    }) => {
       try {
-        await debtApi.create(businessId, { debtorId, amount, description });
+        await debtApi.create(businessId, { debtorId, amount, description, dueDate });
         setIsDebtSheetOpen(false);
         toast.success(`Deuda de ${formatMoney(amount)} registrada`);
         await reloadAfterMutation();
@@ -129,25 +145,40 @@ export const DebtorDetailScreen = () => {
       note,
     }: {
       amount: number;
-      method: 'CASH' | 'TRANSFER' | 'CARD';
+      method: PaymentMethod;
       note: string;
     }) => {
+      const target = paymentTarget;
+      if (target === null) return;
+
       try {
-        const result = await paymentApi.createGlobal(businessId, {
-          debtorId,
-          amount,
-          method,
-          note,
-        });
-        setIsPaymentSheetOpen(false);
-        toast.success(`Pago de ${formatMoney(result.totalAmount)} registrado`);
+        if (target === 'all') {
+          const result = await paymentApi.createGlobal(businessId, {
+            debtorId,
+            amount,
+            method,
+            note,
+          });
+          setPaymentTarget(null);
+          // El backend reparte el abono entre las deudas abiertas, así que se
+          // dice cuántas alcanzó a tocar: es la pregunta que sigue el tendero.
+          toast.success(
+            result.debtsAffected > 1
+              ? `Pago de ${formatMoney(result.totalAmount)} repartido en ${result.debtsAffected} deudas`
+              : `Pago de ${formatMoney(result.totalAmount)} registrado`,
+          );
+        } else {
+          await paymentApi.create(businessId, { debtId: target.id, amount, method, note });
+          setPaymentTarget(null);
+          toast.success(`Abono de ${formatMoney(amount)} registrado`);
+        }
         await reloadAfterMutation();
       } catch (caught) {
-        setIsPaymentSheetOpen(false);
+        setPaymentTarget(null);
         dialog.showError(toAppError(caught));
       }
     },
-    [businessId, debtorId, dialog, reloadAfterMutation, toast],
+    [businessId, debtorId, dialog, paymentTarget, reloadAfterMutation, toast],
   );
 
   const callDebtor = useCallback(() => {
@@ -226,7 +257,7 @@ export const DebtorDetailScreen = () => {
           <Button
             label="Registrar pago"
             icon="cash-outline"
-            onPress={() => setIsPaymentSheetOpen(true)}
+            onPress={() => setPaymentTarget('all')}
             disabled={!hasDebt}
             size="lg"
             style={styles.actionButton}
@@ -334,7 +365,14 @@ export const DebtorDetailScreen = () => {
             {movements.slice(0, visibleMovements).map((movement, index) => (
               <View key={movement.id}>
                 {index > 0 ? <Divider /> : null}
-                <MovementRow movement={movement} />
+                <MovementRow
+                  movement={movement}
+                  onPress={
+                    movement.kind === 'debt'
+                      ? () => setSelectedDebt(movement.debt)
+                      : undefined
+                  }
+                />
               </View>
             ))}
 
@@ -363,11 +401,36 @@ export const DebtorDetailScreen = () => {
         onSubmit={handleAddDebt}
       />
 
+      {/* La hoja de la deuda se retira en cuanto se va a cobrar: dos `Modal`
+          montados a la vez (uno saliendo, otro entrando) dejan al de Android
+          sin aparecer. La de pago sí permanece montada, para que al cerrarla
+          se deslice hacia abajo en vez de desaparecer de golpe. */}
+      {paymentTarget === null ? (
+        <DebtDetailSheet
+          visible={selectedDebt !== null}
+          onClose={() => setSelectedDebt(null)}
+          debt={selectedDebt}
+          onRegisterPayment={(debt) => {
+            setSelectedDebt(null);
+            setPaymentTarget(debt);
+          }}
+        />
+      ) : null}
+
       <RegisterPaymentSheet
-        visible={isPaymentSheetOpen}
-        onClose={() => setIsPaymentSheetOpen(false)}
+        visible={paymentTarget !== null}
+        onClose={() => setPaymentTarget(null)}
         debtorName={debtor.name}
-        balance={summary.balance}
+        balance={
+          paymentTarget === null || paymentTarget === 'all'
+            ? summary.balance
+            : paymentTarget.remainingAmount
+        }
+        target={
+          paymentTarget === null || paymentTarget === 'all'
+            ? undefined
+            : paymentTarget.description || 'esta deuda'
+        }
         onSubmit={handleRegisterPayment}
       />
 

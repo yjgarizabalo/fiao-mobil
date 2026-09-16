@@ -12,10 +12,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-import { haptics } from '../../../core/haptics';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
-import { Divider, IconBubble, PressableScale, Sheet, Text } from '../../../ui';
-import { theme } from '../../../theme';
+import { haptics } from '@/core/haptics';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { Divider, IconBubble, PressableScale, Sheet, Text } from '@/ui';
+import { theme } from '@/theme';
 
 export interface BusinessSwitcherProps {
   /** `inverse` para usarlo sobre el héroe oscuro. */

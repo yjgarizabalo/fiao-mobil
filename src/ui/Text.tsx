@@ -6,8 +6,8 @@
  */
 import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
 
-import { type ThemeColor, theme } from '../theme';
-import type { TypographyToken } from '../theme/tokens';
+import { type ThemeColor, theme } from '@/theme';
+import type { TypographyToken } from '@/theme/tokens';
 
 export interface TextProps extends RNTextProps {
   variant?: TypographyToken;

@@ -8,11 +8,11 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { useForm } from '../../../core/hooks/useForm';
-import { matches, password as passwordRule } from '../../../core/utils/validation';
-import { authApi } from '../../auth/api/authApi';
-import { useSession } from '../../auth/session/SessionProvider';
+import { toAppError } from '@/core/errors/AppError';
+import { useForm } from '@/core/hooks/useForm';
+import { matches, password as passwordRule } from '@/core/utils/validation';
+import { authApi } from '@/features/auth/api/authApi';
+import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   AppBar,
   Button,
@@ -23,8 +23,8 @@ import {
   TextField,
   useDialog,
   useToast,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 /** Cuatro niveles: cada criterio cumplido sube uno. */
 const passwordStrength = (value: string): { level: 0 | 1 | 2 | 3 | 4; label: string } => {

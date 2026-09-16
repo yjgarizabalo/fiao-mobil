@@ -4,10 +4,10 @@
  * Todos los endpoints salvo `/debtors/me/all` exigen el header
  * `x-business-id`: el backend es multi-tenant por negocio.
  */
-import { businessHeader, http } from '../../../core/http/client';
-import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '../../../core/http/payload';
-import { mapDebtor } from '../../../domain/mappers';
-import type { Debtor, DebtorDraft } from '../../../domain/models';
+import { businessHeader, http } from '@/core/http/client';
+import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
+import { mapDebtor } from '@/domain/mappers';
+import type { Debtor, DebtorDraft } from '@/domain/models';
 
 export const debtorApi = {
   /** `GET /debtors` — clientes de un negocio concreto. */

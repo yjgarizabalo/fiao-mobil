@@ -6,12 +6,12 @@
  * `registerBussiness.ts` vacío). Todo pasa por el mismo cliente HTTP, así que
  * hereda timeout, logging redactado y conversión de errores.
  */
-import { env } from '../../../core/config/env';
-import { http, skipAuthRefresh } from '../../../core/http/client';
-import { toItem } from '../../../core/http/payload';
-import type { DocumentType } from '../../../domain/constants';
-import { mapUser } from '../../../domain/mappers';
-import type { User } from '../../../domain/models';
+import { env } from '@/core/config/env';
+import { http, skipAuthRefresh } from '@/core/http/client';
+import { toItem } from '@/core/http/payload';
+import type { DocumentType } from '@/domain/constants';
+import { mapUser } from '@/domain/mappers';
+import type { User } from '@/domain/models';
 
 export interface LoginCredentials {
   /** Correo o número de documento: el backend acepta ambos. */

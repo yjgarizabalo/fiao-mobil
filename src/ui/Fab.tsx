@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

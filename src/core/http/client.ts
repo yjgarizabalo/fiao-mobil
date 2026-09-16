@@ -20,8 +20,8 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 
-import { env } from '../config/env';
-import { AppError } from '../errors/AppError';
+import { env } from '@/core/config/env';
+import { AppError } from '@/core/errors/AppError';
 import { toHttpAppError } from './httpError';
 import {
   clearTokens,
@@ -30,7 +30,7 @@ import {
   notifySessionExpired,
   setTokens,
 } from './tokenStore';
-import { createLogger } from '../logger';
+import { createLogger } from '@/core/logger';
 
 const log = createLogger('http');
 

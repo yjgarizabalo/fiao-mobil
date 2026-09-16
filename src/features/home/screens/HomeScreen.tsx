@@ -17,15 +17,15 @@ import { useCallback, useMemo } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useAsyncData } from '../../../core/hooks/useAsyncData';
-import { routes } from '../../../core/navigation/routes';
-import { getFirstName, pluralize } from '../../../core/utils/format';
-import { type Debtor, debtorBalance, displayName } from '../../../domain/models';
-import { useSession } from '../../auth/session/SessionProvider';
-import { BusinessSwitcher } from '../../businesses/components/BusinessSwitcher';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
-import { debtorApi } from '../../debtors/api/debtorApi';
-import { DebtorRow } from '../../debtors/components/DebtorRow';
+import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { routes } from '@/core/navigation/routes';
+import { getFirstName, pluralize } from '@/core/utils/format';
+import { type Debtor, debtorBalance, displayName } from '@/domain/models';
+import { useSession } from '@/features/auth/session/SessionProvider';
+import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { debtorApi } from '@/features/debtors/api/debtorApi';
+import { DebtorRow } from '@/features/debtors/components/DebtorRow';
 import {
   AnimatedMoney,
   Button,
@@ -38,8 +38,8 @@ import {
   SectionHeader,
   Skeleton,
   Text,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 /** Cuántos clientes con deuda se muestran en el resumen. */
 const TOP_DEBTORS = 5;

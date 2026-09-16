@@ -24,7 +24,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export interface ScreenProps {
   children: ReactNode;

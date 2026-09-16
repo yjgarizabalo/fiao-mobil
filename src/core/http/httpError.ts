@@ -3,7 +3,7 @@
  */
 import axios from 'axios';
 
-import { AppError, codeFromStatus, isAppError } from '../errors/AppError';
+import { AppError, codeFromStatus, isAppError } from '@/core/errors/AppError';
 
 /** Formas conocidas en las que el backend devuelve el detalle de un error. */
 interface ApiErrorBody {
@@ -54,8 +54,19 @@ export const toHttpAppError = (error: unknown): AppError => {
 
     const status = error.response.status;
     const body = error.response.data as ApiErrorBody | undefined;
-    const backendMessage = firstString(body?.message) ?? body?.error;
     const code = codeFromStatus(status);
+
+    /**
+     * El backend responde de dos formas distintas y solo una sirve para el
+     * usuario: las reglas de negocio llegan como un string en español ("El
+     * pago no puede ser mayor al saldo actual"), mientras que las validaciones
+     * de `class-validator` llegan como un array de frases técnicas en inglés
+     * ("amount must be a number conforming to..."). Esas se descartan a favor
+     * del texto por defecto del código de error.
+     */
+    const backendMessage = Array.isArray(body?.message)
+      ? undefined
+      : (firstString(body?.message) ?? body?.error);
 
     return new AppError(code, {
       status,

@@ -21,8 +21,20 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { haptics } from '../core/haptics';
-import { theme } from '../theme';
+import { haptics } from '@/core/haptics';
+import { theme } from '@/theme';
+
+/**
+ * Se anima el `Pressable` mismo, no una vista interna.
+ *
+ * Cuando el estilo se aplicaba a un `Animated.View` hijo, el `Pressable`
+ * quedaba sin estilo: con `position: 'absolute'` (el FAB, por ejemplo) el
+ * botón se pintaba flotando pero el área táctil del padre medía 0×0, y como
+ * ni Android ni iOS entregan toques fuera del marco del padre, el botón se
+ * veía y no respondía. Animando el propio `Pressable`, lo que se ve y lo que
+ * se toca son la misma caja.
+ */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   children: ReactNode;
@@ -74,14 +86,15 @@ export const PressableScale = ({
   );
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPressIn={disabled ? undefined : handlePressIn}
       onPressOut={disabled ? undefined : handlePressOut}
       disabled={disabled}
       accessibilityRole="button"
+      style={[style, animatedStyle]}
       {...rest}
     >
-      <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 };

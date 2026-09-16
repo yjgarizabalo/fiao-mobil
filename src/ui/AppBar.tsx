@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconButton } from './IconButton';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

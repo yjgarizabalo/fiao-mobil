@@ -15,11 +15,11 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { routes } from '../../../core/navigation/routes';
-import { useForm } from '../../../core/hooks/useForm';
-import { emailOrDocument, required } from '../../../core/utils/validation';
-import { useSession } from '../../auth/session/SessionProvider';
+import { toAppError } from '@/core/errors/AppError';
+import { routes } from '@/core/navigation/routes';
+import { useForm } from '@/core/hooks/useForm';
+import { emailOrDocument, required } from '@/core/utils/validation';
+import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   Button,
   Dialog,
@@ -28,8 +28,8 @@ import {
   TextField,
   useDialog,
   useToast,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 export const LoginScreen = () => {
   const insets = useSafeAreaInsets();
@@ -74,13 +74,10 @@ export const LoginScreen = () => {
       <LinearGradient colors={theme.gradient.hero} style={styles.hero}>
         <View style={[styles.heroContent, { paddingTop: insets.top + theme.spacing['3xl'] }]}>
           <Image
-            source={require('../../../../assets/images/icon.png')}
+            source={require('../../../../assets/images/icon-blanco.png')}
             style={styles.logo}
             contentFit="contain"
           />
-          <Text variant="display" color="textInverse">
-            Fiao
-          </Text>
           <Text variant="bodyLg" color="textInverseMuted" style={styles.tagline}>
             Lleva el control de tus vales sin cuadernos ni cuentas perdidas.
           </Text>
@@ -191,9 +188,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xxs,
   },
   logo: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.radius.lg,
+    width: 148,
+    height: 60,
     marginBottom: theme.spacing.md,
   },
   tagline: {

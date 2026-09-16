@@ -33,10 +33,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { haptics } from '../core/haptics';
+import { haptics } from '@/core/haptics';
 import { IconButton } from './IconButton';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export interface SheetProps {
   visible: boolean;

@@ -8,10 +8,10 @@
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { useForm } from '../../../core/hooks/useForm';
-import { minLength, required } from '../../../core/utils/validation';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
+import { toAppError } from '@/core/errors/AppError';
+import { useForm } from '@/core/hooks/useForm';
+import { minLength, required } from '@/core/utils/validation';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import {
   AppBar,
   Button,
@@ -22,8 +22,8 @@ import {
   TextField,
   useDialog,
   useToast,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 export const AddBusinessScreen = () => {
   const { createBusiness, isEmpty: isFirstBusiness } = useBusinesses();

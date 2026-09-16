@@ -1,10 +1,10 @@
 /**
  * API de negocios. `GET/POST /business`
  */
-import { http } from '../../../core/http/client';
-import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '../../../core/http/payload';
-import { mapBusiness } from '../../../domain/mappers';
-import type { Business, BusinessDraft } from '../../../domain/models';
+import { http } from '@/core/http/client';
+import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
+import { mapBusiness } from '@/domain/mappers';
+import type { Business, BusinessDraft } from '@/domain/models';
 
 export const businessApi = {
   list: async (page = 1, limit = DEFAULT_PAGE_SIZE): Promise<Page<Business>> => {

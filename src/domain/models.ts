@@ -61,8 +61,12 @@ export interface Debtor {
   documentType: DocumentType;
   documentNumber: string;
   phone: string;
-  /** Saldo pendiente en este negocio. */
-  balance: number;
+  /**
+   * Saldo pendiente en este negocio, cuando el backend lo manda. Es opcional a
+   * propósito: `GET /debtors/:id` no devuelve saldo (la tabla no tiene esa
+   * columna) y hay que distinguir "no vino" de "es cero".
+   */
+  balance?: number;
   /** Saldo consolidado en todos los negocios del usuario. */
   totalBalance?: number;
   hasPendingDebt?: boolean;
@@ -82,7 +86,7 @@ export interface DebtorDraft {
 
 /** Saldo a mostrar: prioriza el del negocio y cae al consolidado. */
 export const debtorBalance = (debtor: Debtor): number =>
-  debtor.balance > 0 ? debtor.balance : (debtor.totalBalance ?? 0);
+  (debtor.balance ?? 0) > 0 ? (debtor.balance ?? 0) : (debtor.totalBalance ?? 0);
 
 /* ── Deuda ────────────────────────────────────────────────────────────────── */
 
@@ -193,6 +197,7 @@ export interface DebtorSummary {
 export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSummary => {
   let totalDebt = 0;
   let totalPaid = 0;
+  let pending = 0;
   let openDebts = 0;
   let paidDebts = 0;
   let oldestOverdueDate: string | null = null;
@@ -200,28 +205,38 @@ export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSum
   const today = Date.now();
 
   for (const debt of debts) {
+    // Una deuda anulada no se le cobra a nadie: no suma ni al fiado ni al saldo.
+    if (debt.status === 'CANCELLED') continue;
+
     totalDebt += debt.amount;
-    for (const payment of debt.payments) totalPaid += payment.amount;
+    // Solo los abonos cuentan como "pagado"; un ajuste o un reverso mueven el
+    // saldo pero no son plata que el cliente entregó.
+    for (const payment of debt.payments) {
+      if (payment.type === 'PAYMENT') totalPaid += payment.amount;
+    }
 
     if (debt.status === 'PAID') {
       paidDebts += 1;
-    } else {
-      openDebts += 1;
-      const due = new Date(debt.dueDate).getTime();
-      if (Number.isFinite(due) && due < today) {
-        if (!oldestOverdueDate || due < new Date(oldestOverdueDate).getTime()) {
-          oldestOverdueDate = debt.dueDate;
-        }
+      continue;
+    }
+
+    openDebts += 1;
+    // `remainingAmount` es el `balance` que el backend calcula para cada deuda,
+    // así que sumarlo da el saldo exacto sin depender de un total agregado.
+    pending += debt.remainingAmount;
+
+    const due = new Date(debt.dueDate).getTime();
+    if (Number.isFinite(due) && due < today) {
+      if (!oldestOverdueDate || due < new Date(oldestOverdueDate).getTime()) {
+        oldestOverdueDate = debt.dueDate;
       }
     }
   }
 
-  // Se confía en el saldo del servidor cuando viene: él conoce ajustes que la
-  // app no ve. El cálculo local es el respaldo.
+  // Con deudas cargadas el saldo sale de ellas. `serverBalance` solo entra
+  // cuando no hay ninguna (p. ej. una tarjeta de lista que aún no las pidió).
   const balance =
-    serverBalance !== undefined && serverBalance !== null
-      ? Math.max(0, serverBalance)
-      : Math.max(0, totalDebt - totalPaid);
+    debts.length > 0 ? Math.max(0, pending) : Math.max(0, serverBalance ?? 0);
 
   return { totalDebt, totalPaid, balance, openDebts, paidDebts, oldestOverdueDate };
 };

@@ -11,8 +11,8 @@ import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-nativ
 
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
-import { theme } from '../theme';
-import type { SpacingToken } from '../theme/tokens';
+import { theme } from '@/theme';
+import type { SpacingToken } from '@/theme/tokens';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

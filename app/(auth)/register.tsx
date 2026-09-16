@@ -1,2 +1,2 @@
 /** Ruta `/register`. */
-export { RegisterScreen as default } from '../../src/features/auth/screens/RegisterScreen';
+export { RegisterScreen as default } from '@/features/auth/screens/RegisterScreen';

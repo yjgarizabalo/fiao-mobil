@@ -12,7 +12,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { type FieldErrors, type Validator, validate } from '../utils/validation';
+import { type FieldErrors, type Validator, validate } from '@/core/utils/validation';
 
 type StringRecord = Record<string, string>;
 

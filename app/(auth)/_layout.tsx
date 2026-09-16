@@ -6,8 +6,8 @@
  */
 import { Redirect, Stack } from 'expo-router';
 
-import { routes } from '../../src/core/navigation/routes';
-import { useSession } from '../../src/features/auth/session/SessionProvider';
+import { routes } from '@/core/navigation/routes';
+import { useSession } from '@/features/auth/session/SessionProvider';
 
 export default function AuthLayout() {
   const { status } = useSession();

@@ -9,20 +9,45 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { formatMoney } from '../../../core/utils/format';
-import { Button, MoneyField, PressableScale, Sheet, Text, TextField } from '../../../ui';
-import { theme } from '../../../theme';
+import { formatDate, formatMoney } from '@/core/utils/format';
+import { Button, MoneyField, PressableScale, Sheet, Text, TextField } from '@/ui';
+import { theme } from '@/theme';
 
 export interface AddDebtSheetProps {
   visible: boolean;
   onClose: () => void;
   debtorName: string;
   /** Devuelve una promesa: la hoja muestra el estado de carga hasta que acabe. */
-  onSubmit: (values: { amount: number; description: string }) => Promise<void>;
+  onSubmit: (values: {
+    amount: number;
+    description: string;
+    /** ISO-8601, o `undefined` si el tendero no fijó plazo. */
+    dueDate: string | undefined;
+  }) => Promise<void>;
 }
 
 /** Montos frecuentes en una tienda de barrio. */
 const QUICK_AMOUNTS = [2_000, 5_000, 10_000, 20_000, 50_000];
+
+/**
+ * Plazos en días. Se ofrecen como atajos en vez de un calendario porque el
+ * tendero está atendiendo: "para el otro sábado" es un toque, no seis.
+ * `null` = sin plazo, que es lo que el backend guarda cuando no se manda nada.
+ */
+const DUE_OPTIONS: { label: string; days: number | null }[] = [
+  { label: 'Sin plazo', days: null },
+  { label: '8 días', days: 8 },
+  { label: '15 días', days: 15 },
+  { label: '30 días', days: 30 },
+];
+
+/** Fecha ISO a N días de hoy, al final del día para no vencer a mitad de jornada. */
+const dueDateFromNow = (days: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(23, 59, 59, 0);
+  return date.toISOString();
+};
 
 export const AddDebtSheet = ({
   visible,
@@ -32,6 +57,7 @@ export const AddDebtSheet = ({
 }: AddDebtSheetProps) => {
   const [amount, setAmount] = useState(0);
   const [description, setDescription] = useState('');
+  const [dueDays, setDueDays] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Se limpia al abrir, no al cerrar: si el envío falla, el usuario conserva
@@ -40,6 +66,7 @@ export const AddDebtSheet = ({
     if (visible) {
       setAmount(0);
       setDescription('');
+      setDueDays(null);
     }
   }, [visible]);
 
@@ -47,7 +74,11 @@ export const AddDebtSheet = ({
     if (amount <= 0) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ amount, description: description.trim() });
+      await onSubmit({
+        amount,
+        description: description.trim(),
+        dueDate: dueDays === null ? undefined : dueDateFromNow(dueDays),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -98,6 +129,44 @@ export const AddDebtSheet = ({
         ))}
       </View>
 
+      <View style={styles.dueSection}>
+        <Text variant="captionStrong" color="textMuted">
+          ¿Cuándo te lo paga?
+        </Text>
+
+        <View style={styles.dueOptions}>
+          {DUE_OPTIONS.map((option) => {
+            const isActive = option.days === dueDays;
+            return (
+              <PressableScale
+                key={option.label}
+                onPress={() => setDueDays(option.days)}
+                haptic="select"
+                activeScale={0.95}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={option.label}
+                style={[styles.dueChip, isActive ? styles.dueChipActive : null]}
+              >
+                <Text
+                  variant="captionStrong"
+                  color={isActive ? 'brandOn' : 'textMuted'}
+                  numberOfLines={1}
+                >
+                  {option.label}
+                </Text>
+              </PressableScale>
+            );
+          })}
+        </View>
+
+        {dueDays !== null ? (
+          <Text variant="caption" color="textMuted">
+            Vence el {formatDate(dueDateFromNow(dueDays))}
+          </Text>
+        ) : null}
+      </View>
+
       <TextField
         label="¿Qué le fiaste? (opcional)"
         placeholder="Pan, leche, arroz…"
@@ -125,5 +194,25 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
+  },
+  dueSection: {
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  dueOptions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  dueChip: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.color.surfaceSunken,
+    paddingHorizontal: theme.spacing.xs,
+  },
+  dueChipActive: {
+    backgroundColor: theme.color.brand,
   },
 });

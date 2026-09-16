@@ -13,9 +13,9 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { useForm } from '../../../core/hooks/useForm';
-import { routes } from '../../../core/navigation/routes';
+import { toAppError } from '@/core/errors/AppError';
+import { useForm } from '@/core/hooks/useForm';
+import { routes } from '@/core/navigation/routes';
 import {
   documentNumber as documentNumberRule,
   email as emailRule,
@@ -24,9 +24,9 @@ import {
   password as passwordRule,
   phone as phoneRule,
   required,
-} from '../../../core/utils/validation';
-import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '../../../domain/constants';
-import { useSession } from '../../auth/session/SessionProvider';
+} from '@/core/utils/validation';
+import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '@/domain/constants';
+import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   AppBar,
   Button,
@@ -37,8 +37,8 @@ import {
   Text,
   TextField,
   useDialog,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 export const RegisterScreen = () => {
   const { register } = useSession();

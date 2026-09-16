@@ -13,10 +13,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
-import { SessionProvider } from '../src/features/auth/session/SessionProvider';
-import { BusinessProvider } from '../src/features/businesses/state/BusinessProvider';
-import { ToastProvider } from '../src/ui';
-import { theme } from '../src/theme';
+import { SessionProvider } from '@/features/auth/session/SessionProvider';
+import { BusinessProvider } from '@/features/businesses/state/BusinessProvider';
+import { ToastProvider } from '@/ui';
+import { theme } from '@/theme';
 
 export default function RootLayout() {
   return (

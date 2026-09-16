@@ -10,7 +10,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
 import { PressableScale } from './PressableScale';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

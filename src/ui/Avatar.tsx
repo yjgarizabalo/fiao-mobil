@@ -7,9 +7,9 @@
  */
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-import { getAvatarColor, getInitials } from '../core/utils/format';
+import { getAvatarColor, getInitials } from '@/core/utils/format';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 

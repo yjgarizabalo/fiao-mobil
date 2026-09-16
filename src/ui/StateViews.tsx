@@ -10,10 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-import type { AppError } from '../core/errors/AppError';
+import type { AppError } from '@/core/errors/AppError';
 import { Button } from './Button';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

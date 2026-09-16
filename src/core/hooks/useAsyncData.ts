@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { type AppError, toAppError } from '../errors/AppError';
+import { type AppError, toAppError } from '@/core/errors/AppError';
 
 export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
 

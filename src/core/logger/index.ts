@@ -7,7 +7,7 @@
  *  - en producción solo se emiten `warn` y `error`;
  *  - todo objeto pasa por `redact()`, que enmascara llaves sensibles.
  */
-import { env } from '../config/env';
+import { env } from '@/core/config/env';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

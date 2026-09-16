@@ -8,9 +8,9 @@
  */
 import { StyleSheet, TextInput, View } from 'react-native';
 
-import { formatNumber, parseMoney } from '../core/utils/format';
+import { formatNumber, parseMoney } from '@/core/utils/format';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export interface MoneyFieldProps {
   value: number;

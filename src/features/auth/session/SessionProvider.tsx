@@ -23,22 +23,22 @@ import {
   useState,
 } from 'react';
 
-import { AppError, toAppError } from '../../../core/errors/AppError';
+import { AppError, toAppError } from '@/core/errors/AppError';
 import {
   clearTokens,
   getRefreshToken,
   hydrateTokens,
   onSessionExpired,
   setTokens,
-} from '../../../core/http/tokenStore';
-import { createLogger } from '../../../core/logger';
-import { StorageKeys, getJson, removeItems, setJson } from '../../../core/storage/storage';
-import type { User } from '../../../domain/models';
+} from '@/core/http/tokenStore';
+import { createLogger } from '@/core/logger';
+import { StorageKeys, getJson, removeItems, setJson } from '@/core/storage/storage';
+import type { User } from '@/domain/models';
 import {
   type LoginCredentials,
   type RegisterPayload,
   authApi,
-} from '../../auth/api/authApi';
+} from '@/features/auth/api/authApi';
 
 const log = createLogger('session');
 

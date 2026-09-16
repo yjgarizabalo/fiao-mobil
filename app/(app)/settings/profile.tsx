@@ -1,2 +1,2 @@
 /** Ruta `/settings/profile` — editar el perfil. */
-export { EditProfileScreen as default } from '../../../src/features/profile/screens/EditProfileScreen';
+export { EditProfileScreen as default } from '@/features/profile/screens/EditProfileScreen';

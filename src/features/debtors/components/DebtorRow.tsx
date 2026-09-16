@@ -8,10 +8,10 @@
  */
 import { StyleSheet, View } from 'react-native';
 
-import { formatMoney, formatPhone } from '../../../core/utils/format';
-import { type Debtor, debtorBalance } from '../../../domain/models';
-import { Avatar, Badge, PressableScale, Text } from '../../../ui';
-import { theme } from '../../../theme';
+import { formatMoney, formatPhone } from '@/core/utils/format';
+import { type Debtor, debtorBalance } from '@/domain/models';
+import { Avatar, Badge, PressableScale, Text } from '@/ui';
+import { theme } from '@/theme';
 
 export interface DebtorRowProps {
   debtor: Debtor;

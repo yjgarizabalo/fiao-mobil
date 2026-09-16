@@ -17,14 +17,14 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
-import { useDebouncedValue } from '../../../core/hooks/useDebouncedValue';
-import { usePagedList } from '../../../core/hooks/usePagedList';
-import { routes } from '../../../core/navigation/routes';
-import { formatMoney, normalizeText } from '../../../core/utils/format';
-import { type Debtor, debtorBalance } from '../../../domain/models';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
-import { debtorApi } from '../../debtors/api/debtorApi';
-import { DebtorRow } from '../../debtors/components/DebtorRow';
+import { useDebouncedValue } from '@/core/hooks/useDebouncedValue';
+import { usePagedList } from '@/core/hooks/usePagedList';
+import { routes } from '@/core/navigation/routes';
+import { formatMoney, normalizeText } from '@/core/utils/format';
+import { type Debtor, debtorBalance } from '@/domain/models';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { debtorApi } from '@/features/debtors/api/debtorApi';
+import { DebtorRow } from '@/features/debtors/components/DebtorRow';
 import {
   AppBar,
   EmptyState,
@@ -36,8 +36,8 @@ import {
   SearchBar,
   SegmentedControl,
   Text,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 type StatusFilter = 'all' | 'debt' | 'clear';
 /** Alcance de la lista: solo el negocio activo o todos los negocios. */

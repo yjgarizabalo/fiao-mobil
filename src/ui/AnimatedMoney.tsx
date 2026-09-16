@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 
-import { formatMoney } from '../core/utils/format';
+import { formatMoney } from '@/core/utils/format';
 import { Text, type TextProps } from './Text';
 
 export interface AnimatedMoneyProps extends Omit<TextProps, 'children'> {

@@ -7,7 +7,7 @@
  * datos limpios y tipados, así que ninguna pantalla necesita `Number(x)` ni
  * `?? 0` defensivos.
  */
-import { toAmount } from '../core/http/payload';
+import { toAmount } from '@/core/http/payload';
 import {
   type DebtStatus,
   type DocumentType,
@@ -26,22 +26,33 @@ const asBoolean = (value: unknown): boolean => value === true || value === 'true
 
 const asDocumentType = (value: unknown): DocumentType => {
   const raw = asString(value).toUpperCase();
+  // Datos viejos guardados antes de alinear el enum con el backend.
+  if (raw === 'CE' || raw === 'PP' || raw === 'TI') return 'FOREIGNER';
   return isDocumentType(raw) ? raw : 'CC';
 };
 
 const asPaymentMethod = (value: unknown): PaymentMethod => {
   const raw = asString(value).toUpperCase();
-  return raw === 'TRANSFER' || raw === 'CARD' ? raw : 'CASH';
+  if (raw === 'TRANSFER') return 'TRANSFER';
+  if (raw === 'OTHER' || raw === 'CARD') return 'OTHER';
+  return 'CASH';
 };
 
-const asTransactionType = (value: unknown): TransactionType =>
-  asString(value).toUpperCase() === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'PAYMENT';
+const asTransactionType = (value: unknown): TransactionType => {
+  const raw = asString(value).toUpperCase();
+  if (raw === 'ADJUSTMENT' || raw === 'REVERSAL') return raw;
+  return 'PAYMENT';
+};
 
 const asDebtStatus = (value: unknown): DebtStatus => {
   const raw = asString(value).toUpperCase();
-  if (raw === 'PAID' || raw === 'PARTIAL') return raw;
+  if (raw === 'PAID' || raw === 'PARTIAL' || raw === 'CANCELLED') return raw;
   return 'OPEN';
 };
+
+/** Lee el `id` de una relación anidada (`debtor: { id }`). */
+const relationId = (value: unknown): string =>
+  typeof value === 'object' && value !== null ? asString((value as Raw).id) : '';
 
 /* ── Usuario ──────────────────────────────────────────────────────────────── */
 
@@ -77,7 +88,15 @@ export const mapBusiness = (raw: unknown): Business => {
 
 export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
   const data = (raw ?? {}) as Raw;
-  const balance = toAmount(data.balance);
+
+  /**
+   * El saldo se deja en `undefined` cuando el backend no lo manda, y esa
+   * distinción importa: la tabla `Debtor` no tiene columna `balance`, así que
+   * `GET /debtors/:id` no devuelve ninguno. Convertirlo en `0` hacía que el
+   * detalle del cliente mostrara "Al día" y deshabilitara el cobro aunque
+   * hubiera deudas abiertas. Solo el listado manda `totalBalance`.
+   */
+  const balance = data.balance === undefined ? undefined : toAmount(data.balance);
   const totalBalance = data.totalBalance === undefined ? undefined : toAmount(data.totalBalance);
 
   return {
@@ -91,9 +110,9 @@ export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
     // Si el backend no manda la bandera, se deduce del saldo.
     hasPendingDebt:
       data.hasPendingDebt === undefined
-        ? balance > 0 || (totalBalance ?? 0) > 0
+        ? (balance ?? 0) > 0 || (totalBalance ?? 0) > 0
         : asBoolean(data.hasPendingDebt),
-    businessId: asString(data.businessId) || businessId,
+    businessId: asString(data.businessId) || relationId(data.business) || businessId,
   };
 };
 
@@ -133,8 +152,10 @@ export const mapDebt = (raw: unknown, businessId = ''): Debt => {
 
   return {
     id,
-    businessId: asString(data.businessId, businessId),
-    debtorId: asString(data.debtorId),
+    // El listado de deudas no trae los ids sueltos: vienen anidados como
+    // `business: { id }` y `debtor: { id }`.
+    businessId: asString(data.businessId) || relationId(data.business) || businessId,
+    debtorId: asString(data.debtorId) || relationId(data.debtor),
     amount,
     remainingAmount,
     description: asString(data.description),

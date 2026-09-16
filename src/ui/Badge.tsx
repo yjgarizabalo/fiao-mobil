@@ -12,7 +12,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

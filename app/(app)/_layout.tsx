@@ -12,8 +12,8 @@
 import { Redirect, Stack } from 'expo-router';
 import { Platform } from 'react-native';
 
-import { routes } from '../../src/core/navigation/routes';
-import { useSession } from '../../src/features/auth/session/SessionProvider';
+import { routes } from '@/core/navigation/routes';
+import { useSession } from '@/features/auth/session/SessionProvider';
 
 export default function AppLayout() {
   const { status } = useSession();

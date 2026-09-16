@@ -12,15 +12,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { formatMoney } from '../../../core/utils/format';
+import { formatMoney } from '@/core/utils/format';
 import {
   PAYMENT_METHOD_ICON,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   type PaymentMethod,
-} from '../../../domain/constants';
-import { Button, MoneyField, PressableScale, Sheet, Text, TextField } from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/domain/constants';
+import { Button, MoneyField, PressableScale, Sheet, Text, TextField } from '@/ui';
+import { theme } from '@/theme';
 
 export interface RegisterPaymentSheetProps {
   visible: boolean;
@@ -28,6 +28,11 @@ export interface RegisterPaymentSheetProps {
   debtorName: string;
   /** Saldo pendiente: es el máximo que se puede abonar. */
   balance: number;
+  /**
+   * Deuda a la que se abona. Sin esto el pago es al saldo total y el backend
+   * lo reparte entre las deudas abiertas.
+   */
+  target?: string;
   onSubmit: (values: {
     amount: number;
     method: PaymentMethod;
@@ -40,6 +45,7 @@ export const RegisterPaymentSheet = ({
   onClose,
   debtorName,
   balance,
+  target,
   onSubmit,
 }: RegisterPaymentSheetProps) => {
   const [amount, setAmount] = useState(balance);
@@ -75,8 +81,8 @@ export const RegisterPaymentSheet = ({
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Registrar pago"
-      subtitle={`De ${debtorName}`}
+      title={target ? 'Abonar a la deuda' : 'Registrar pago'}
+      subtitle={target ? `${debtorName} · ${target}` : `De ${debtorName}`}
       dismissible={!isSubmitting}
       scrollable
       footer={
@@ -108,7 +114,7 @@ export const RegisterPaymentSheet = ({
       {/* Saldo pendiente, para que la decisión se tome con el dato a la vista */}
       <View style={styles.balanceCard}>
         <Text variant="overline" color="textSubtle">
-          Saldo pendiente
+          {target ? 'Falta por pagar de esta deuda' : 'Saldo pendiente'}
         </Text>
         <Text variant="title2" color="dangerStrong">
           {formatMoney(balance)}

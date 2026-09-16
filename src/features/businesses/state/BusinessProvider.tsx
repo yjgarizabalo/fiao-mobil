@@ -20,12 +20,12 @@ import {
   useState,
 } from 'react';
 
-import { type AppError, toAppError } from '../../../core/errors/AppError';
-import { createLogger } from '../../../core/logger';
-import { StorageKeys, getItem, setItem } from '../../../core/storage/storage';
-import type { Business, BusinessDraft } from '../../../domain/models';
-import { useSession } from '../../auth/session/SessionProvider';
-import { businessApi } from '../../businesses/api/businessApi';
+import { type AppError, toAppError } from '@/core/errors/AppError';
+import { createLogger } from '@/core/logger';
+import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
+import type { Business, BusinessDraft } from '@/domain/models';
+import { useSession } from '@/features/auth/session/SessionProvider';
+import { businessApi } from '@/features/businesses/api/businessApi';
 
 const log = createLogger('business');
 

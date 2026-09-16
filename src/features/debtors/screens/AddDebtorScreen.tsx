@@ -11,18 +11,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { toAppError } from '../../../core/errors/AppError';
-import { useForm } from '../../../core/hooks/useForm';
-import { routes } from '../../../core/navigation/routes';
+import { toAppError } from '@/core/errors/AppError';
+import { useForm } from '@/core/hooks/useForm';
+import { routes } from '@/core/navigation/routes';
 import {
   documentNumber as documentNumberRule,
   minLength,
   phone as phoneRule,
   required,
-} from '../../../core/utils/validation';
-import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '../../../domain/constants';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
-import { debtorApi } from '../../debtors/api/debtorApi';
+} from '@/core/utils/validation';
+import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '@/domain/constants';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { debtorApi } from '@/features/debtors/api/debtorApi';
 import {
   AppBar,
   Button,
@@ -32,8 +32,8 @@ import {
   Text,
   TextField,
   useDialog,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 export const AddDebtorScreen = () => {
   const params = useLocalSearchParams<{ businessId?: string }>();

@@ -10,9 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
-import { haptics } from '../../../core/haptics';
-import { routes } from '../../../core/navigation/routes';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
+import { haptics } from '@/core/haptics';
+import { routes } from '@/core/navigation/routes';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import {
   AppBar,
   Badge,
@@ -25,8 +25,8 @@ import {
   PressableScale,
   Screen,
   Text,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 export const BusinessListScreen = () => {
   const { businesses, activeBusinessId, isLoading, error, refresh, selectBusiness } =

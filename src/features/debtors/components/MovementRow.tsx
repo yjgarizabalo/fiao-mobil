@@ -8,17 +8,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
-import { formatMoney, formatRelativeDate } from '../../../core/utils/format';
-import { DEBT_STATUS_LABEL, PAYMENT_METHOD_LABEL } from '../../../domain/constants';
-import type { Movement } from '../../../domain/models';
-import { Badge, Text } from '../../../ui';
-import { theme } from '../../../theme';
+import { formatMoney, formatRelativeDate } from '@/core/utils/format';
+import { DEBT_STATUS_LABEL, PAYMENT_METHOD_LABEL } from '@/domain/constants';
+import type { Movement } from '@/domain/models';
+import { Badge, PressableScale, Text } from '@/ui';
+import { theme } from '@/theme';
 
 export interface MovementRowProps {
   movement: Movement;
+  /** Solo las deudas se abren: un abono no tiene más detalle que el que se ve. */
+  onPress?: () => void;
 }
 
-export const MovementRow = ({ movement }: MovementRowProps) => {
+export const MovementRow = ({ movement, onPress }: MovementRowProps) => {
   const isDebt = movement.kind === 'debt';
 
   const title = isDebt
@@ -31,8 +33,8 @@ export const MovementRow = ({ movement }: MovementRowProps) => {
         .filter(Boolean)
         .join(' · ');
 
-  return (
-    <View style={styles.container}>
+  const content = (
+    <>
       <View
         style={[
           styles.icon,
@@ -70,11 +72,32 @@ export const MovementRow = ({ movement }: MovementRowProps) => {
         {isDebt && movement.debt.status !== 'OPEN' ? (
           <Badge
             label={DEBT_STATUS_LABEL[movement.debt.status]}
-            tone={movement.debt.status === 'PAID' ? 'success' : 'warning'}
+            tone={
+              movement.debt.status === 'PAID'
+                ? 'success'
+                : movement.debt.status === 'CANCELLED'
+                  ? 'neutral'
+                  : 'warning'
+            }
           />
         ) : null}
       </View>
-    </View>
+    </>
+  );
+
+  if (!onPress) return <View style={styles.container}>{content}</View>;
+
+  return (
+    <PressableScale
+      onPress={onPress}
+      haptic="tap"
+      activeScale={0.99}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver el detalle de ${title}`}
+      style={styles.container}
+    >
+      {content}
+    </PressableScale>
   );
 };
 

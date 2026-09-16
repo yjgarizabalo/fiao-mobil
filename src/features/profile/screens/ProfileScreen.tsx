@@ -15,13 +15,13 @@ import { useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { env } from '../../../core/config/env';
-import { toAppError } from '../../../core/errors/AppError';
-import { routes } from '../../../core/navigation/routes';
-import { formatPhone, pluralize } from '../../../core/utils/format';
-import { displayName } from '../../../domain/models';
-import { useSession } from '../../auth/session/SessionProvider';
-import { useBusinesses } from '../../businesses/state/BusinessProvider';
+import { env } from '@/core/config/env';
+import { toAppError } from '@/core/errors/AppError';
+import { routes } from '@/core/navigation/routes';
+import { formatPhone, pluralize } from '@/core/utils/format';
+import { displayName } from '@/domain/models';
+import { useSession } from '@/features/auth/session/SessionProvider';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import {
   Avatar,
   Badge,
@@ -34,8 +34,8 @@ import {
   Text,
   useDialog,
   useToast,
-} from '../../../ui';
-import { theme } from '../../../theme';
+} from '@/ui';
+import { theme } from '@/theme';
 
 const SUPPORT_EMAIL = 'soporte@fiao.app';
 

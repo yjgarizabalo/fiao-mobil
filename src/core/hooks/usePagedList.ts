@@ -8,8 +8,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { type AppError, toAppError } from '../errors/AppError';
-import { DEFAULT_PAGE_SIZE, type Page } from '../http/payload';
+import { type AppError, toAppError } from '@/core/errors/AppError';
+import { DEFAULT_PAGE_SIZE, type Page } from '@/core/http/payload';
 
 export interface UsePagedListResult<T> {
   items: T[];

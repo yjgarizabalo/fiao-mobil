@@ -19,11 +19,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { haptics } from '../core/haptics';
-import type { AppError } from '../core/errors/AppError';
+import { haptics } from '@/core/haptics';
+import type { AppError } from '@/core/errors/AppError';
 import { Button } from './Button';
 import { Text } from './Text';
-import { theme } from '../theme';
+import { theme } from '@/theme';
 
 export type DialogTone = 'info' | 'success' | 'warning' | 'danger';
 

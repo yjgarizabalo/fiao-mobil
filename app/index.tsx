@@ -14,10 +14,10 @@ import { Redirect } from 'expo-router';
 import { Image } from 'expo-image';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { routes } from '../src/core/navigation/routes';
-import { useSession } from '../src/features/auth/session/SessionProvider';
-import { Text } from '../src/ui';
-import { theme } from '../src/theme';
+import { routes } from '@/core/navigation/routes';
+import { useSession } from '@/features/auth/session/SessionProvider';
+import { Text } from '@/ui';
+import { theme } from '@/theme';
 
 export default function IndexScreen() {
   const { status } = useSession();
@@ -31,15 +31,12 @@ const SplashScreen = () => (
   <LinearGradient colors={theme.gradient.hero} style={styles.container}>
     <View style={styles.brand}>
       <Image
-        source={require('../assets/images/icon.png')}
+        source={require('../assets/images/icon-blanco.png')}
         style={styles.logo}
         contentFit="contain"
         transition={200}
       />
-      <Text variant="title1" color="textInverse">
-        Fiao
-      </Text>
-      <Text variant="caption" color="textInverseMuted">
+      <Text variant="body" color="textInverseMuted">
         Tus vales, siempre al día
       </Text>
     </View>
@@ -59,10 +56,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: theme.radius.xl,
-    marginBottom: theme.spacing.md,
+    width: 176,
+    height: 71,
+    marginBottom: theme.spacing.sm,
   },
   spinner: {
     position: 'absolute',

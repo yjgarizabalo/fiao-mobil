@@ -6,7 +6,7 @@
  * quien escuche cuando la sesión se invalida, para que la UI reaccione en vez
  * de quedarse colgada con un token muerto.
  */
-import { StorageKeys, getItems, removeItems, setItem } from '../storage/storage';
+import { StorageKeys, getItems, removeItems, setItem } from '@/core/storage/storage';
 
 export interface SessionTokens {
   accessToken: string;

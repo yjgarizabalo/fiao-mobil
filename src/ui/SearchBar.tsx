@@ -8,8 +8,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, TextInput, View, type ViewStyle } from 'react-native';
 
-import { haptics } from '../core/haptics';
-import { theme } from '../theme';
+import { haptics } from '@/core/haptics';
+import { theme } from '@/theme';
 
 export interface SearchBarProps {
   value: string;

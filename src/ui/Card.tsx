@@ -9,8 +9,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { PressableScale } from './PressableScale';
-import { theme } from '../theme';
-import type { RadiusToken, SpacingToken } from '../theme/tokens';
+import { theme } from '@/theme';
+import type { RadiusToken, SpacingToken } from '@/theme/tokens';
 
 export interface CardProps {
   children: ReactNode;
