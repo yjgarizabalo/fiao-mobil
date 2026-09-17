@@ -41,6 +41,8 @@ export const routes = {
       ({ pathname: '/client/new', params: { businessId } }) as unknown as Href,
     detail: (debtorId: string, businessId: string): Href =>
       ({ pathname: '/client/[id]', params: { id: debtorId, businessId } }) as unknown as Href,
+    edit: (debtorId: string, businessId: string): Href =>
+      ({ pathname: '/client/edit', params: { id: debtorId, businessId } }) as unknown as Href,
   },
 
   settings: {

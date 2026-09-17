@@ -88,6 +88,26 @@ export interface DebtorDraft {
 export const debtorBalance = (debtor: Debtor): number =>
   (debtor.balance ?? 0) > 0 ? (debtor.balance ?? 0) : (debtor.totalBalance ?? 0);
 
+/**
+ * Totales de un negocio, calculados por el servidor.
+ *
+ * Existen porque sumar en el móvil obligaba a descargar todos los clientes, y
+ * el backend tope el `limit` en 100: pasando de 100 clientes el total que se
+ * mostraba en el inicio era menor que el real y nada lo delataba.
+ */
+export interface BusinessSummary {
+  /** Suma de todos los saldos pendientes del negocio. */
+  totalBalance: number;
+  /** Clientes activos del negocio. */
+  totalDebtors: number;
+  /** Clientes que deben algo. */
+  debtorsWithDebt: number;
+  /** Clientes al día. */
+  debtorsClear: number;
+  /** Los que más deben, ya ordenados de mayor a menor por el servidor. */
+  topDebtors: Debtor[];
+}
+
 /* ── Deuda ────────────────────────────────────────────────────────────────── */
 
 export interface Payment {

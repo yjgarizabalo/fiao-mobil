@@ -5,8 +5,10 @@
  *  - `FlatList` en vez de `ScrollView` con `.map()`: recicla filas, así que
  *    500 clientes se desplazan igual de fluido que 10;
  *  - scroll infinito en lugar de botones de página;
- *  - filtros por estado (todos / deben / al día) con contadores;
- *  - buscador con debounce y sin tildes;
+ *  - filtros por estado (todos / deben / al día) resueltos en el servidor,
+ *    con contadores exactos del negocio y no de la página cargada;
+ *  - buscador con debounce que consulta al **servidor**, no a la página
+ *    cargada, para que encuentre a un cliente esté en la página que esté;
  *  - pull-to-refresh;
  *  - estados de carga, vacío, "sin resultados" y error, cada uno con su texto.
  *
@@ -17,11 +19,12 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
+import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useDebouncedValue } from '@/core/hooks/useDebouncedValue';
 import { usePagedList } from '@/core/hooks/usePagedList';
 import { routes } from '@/core/navigation/routes';
-import { formatMoney, normalizeText } from '@/core/utils/format';
-import { type Debtor, debtorBalance } from '@/domain/models';
+import { formatMoney } from '@/core/utils/format';
+import type { Debtor } from '@/domain/models';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { DebtorRow } from '@/features/debtors/components/DebtorRow';
@@ -67,14 +70,40 @@ export const DebtorListScreen = () => {
   const canSwitchScope = businesses.length > 1 && !isFilteredByParam;
   const effectiveScope: Scope = canSwitchScope ? scope : 'business';
 
+  /**
+   * Búsqueda y filtro de estado los resuelve el **servidor**, y ambos forman
+   * parte de las `deps`: al cambiarlos se vuelve a pedir la página 1 ya
+   * filtrada. Filtrar en local solo miraba la página cargada, así que con
+   * muchos clientes un nombre de la página 8 no aparecía nunca y el chip
+   * "Deben" mostraba un puñado de los que hubiera a mano.
+   */
+  const hasDebtFilter = statusFilter === 'all' ? undefined : statusFilter === 'debt';
+
   const list = usePagedList<Debtor>(
-    (page, limit) =>
-      effectiveScope === 'all'
-        ? debtorApi.listAll(page, limit)
-        : debtorApi.listByBusiness(businessId as string, page, limit),
+    (page, limit) => {
+      const query = { search: debouncedSearch, hasDebt: hasDebtFilter };
+      return effectiveScope === 'all'
+        ? debtorApi.listAll(page, limit, query)
+        : debtorApi.listByBusiness(businessId as string, page, limit, query);
+    },
     {
       pageSize: PAGE_SIZE,
       enabled: effectiveScope === 'all' || Boolean(businessId),
+      deps: [businessId, effectiveScope, debouncedSearch, hasDebtFilter],
+    },
+  );
+
+  /**
+   * Totales exactos del negocio para los contadores de los chips. Es una
+   * petición agregada y barata; contarlos sobre `list.items` decía "20
+   * clientes" cuando había 300. No aplica al alcance "todos los negocios",
+   * que no tiene un resumen equivalente en el backend: ahí los chips van sin
+   * número, que es preferible a enseñar uno falso.
+   */
+  const totals = useAsyncData(
+    () => debtorApi.getSummary(businessId as string, 0),
+    {
+      enabled: effectiveScope === 'business' && Boolean(businessId),
       deps: [businessId, effectiveScope],
     },
   );
@@ -82,38 +111,29 @@ export const DebtorListScreen = () => {
   // Al volver del detalle, los saldos pueden haber cambiado.
   useFocusEffect(
     useCallback(() => {
-      if (effectiveScope === 'all' || businessId) void list.refresh();
+      if (effectiveScope === 'all' || businessId) {
+        void list.refresh();
+        void totals.refresh();
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [businessId, effectiveScope]),
   );
 
   const counts = useMemo(() => {
-    const withDebt = list.items.filter((debtor) => debtorBalance(debtor) > 0).length;
-    return { all: list.items.length, debt: withDebt, clear: list.items.length - withDebt };
-  }, [list.items]);
+    const data = totals.data;
+    if (!data) return { all: undefined, debt: undefined, clear: undefined };
+    return { all: data.totalDebtors, debt: data.debtorsWithDebt, clear: data.debtorsClear };
+  }, [totals.data]);
 
-  const visibleDebtors = useMemo(() => {
-    const query = normalizeText(debouncedSearch.trim());
+  // Ya no hay filtrado local: la lista llega filtrada del servidor.
+  const visibleDebtors = list.items;
 
-    return list.items.filter((debtor) => {
-      const hasDebt = debtorBalance(debtor) > 0;
-      if (statusFilter === 'debt' && !hasDebt) return false;
-      if (statusFilter === 'clear' && hasDebt) return false;
-
-      if (query.length === 0) return true;
-      // Se busca por nombre y por documento: el tendero usa ambos.
-      return (
-        normalizeText(debtor.name).includes(query) ||
-        debtor.documentNumber.includes(query) ||
-        debtor.phone.includes(query)
-      );
-    });
-  }, [list.items, statusFilter, debouncedSearch]);
-
-  const totalOwed = useMemo(
-    () => visibleDebtors.reduce((sum, debtor) => sum + debtorBalance(debtor), 0),
-    [visibleDebtors],
-  );
+  /**
+   * Saldo total del negocio, tal como lo calcula el servidor. Sumar
+   * `list.items` daba la suma de la página cargada presentada como si fuera
+   * el total del negocio.
+   */
+  const totalOwed = statusFilter === 'clear' ? 0 : (totals.data?.totalBalance ?? 0);
 
   const openDebtor = useCallback(
     (debtor: Debtor) => {
@@ -184,7 +204,7 @@ export const DebtorListScreen = () => {
         {totalOwed > 0 ? (
           <View style={styles.totalRow}>
             <Text variant="caption" color="textMuted">
-              {statusFilter === 'clear' ? 'Sin saldo pendiente' : 'Suma de los saldos mostrados'}
+              Total por cobrar
             </Text>
             <Text variant="captionStrong" color="dangerStrong">
               {formatMoney(totalOwed)}
@@ -193,7 +213,13 @@ export const DebtorListScreen = () => {
         ) : null}
       </View>
 
-      {list.isLoading ? (
+      {/*
+        El skeleton solo aparece cuando no hay nada que enseñar. Como la
+        búsqueda ahora va al servidor, cada tecleo recarga la lista; si el
+        skeleton saliera siempre, la pantalla parpadearía en cada letra. Se
+        mantienen los resultados anteriores hasta que llegan los nuevos.
+      */}
+      {list.isLoading && list.items.length === 0 ? (
         <View style={styles.skeletonHost}>
           <ListSkeleton />
         </View>

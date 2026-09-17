@@ -15,14 +15,17 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Linking, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { toAppError } from '@/core/errors/AppError';
+import { haptics } from '@/core/haptics';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { routes } from '@/core/navigation/routes';
 import { formatMoney, formatPhone, formatRelativeDate } from '@/core/utils/format';
+import { buildDebtReminder, buildWhatsAppUrl } from '@/core/utils/whatsapp';
 import type { PaymentMethod } from '@/domain/constants';
 import {
   type Debt,
@@ -30,6 +33,7 @@ import {
   buildMovements,
   summarizeDebts,
 } from '@/domain/models';
+import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { debtApi } from '@/features/debts/api/debtApi';
 import { AddDebtSheet } from '@/features/debts/components/AddDebtSheet';
 import { DebtDetailSheet } from '@/features/debts/components/DebtDetailSheet';
@@ -77,6 +81,7 @@ export const DebtorDetailScreen = () => {
 
   const debtorId = params.id ?? '';
   const businessId = params.businessId ?? '';
+  const { getBusiness } = useBusinesses();
 
   const [isDebtSheetOpen, setIsDebtSheetOpen] = useState(false);
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE);
@@ -181,10 +186,52 @@ export const DebtorDetailScreen = () => {
     [businessId, debtorId, dialog, paymentTarget, reloadAfterMutation, toast],
   );
 
+  // Al volver de la pantalla de edición los datos pueden haber cambiado.
+  useFocusEffect(
+    useCallback(() => {
+      if (debtorId && businessId) void detail.refresh();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debtorId, businessId]),
+  );
+
   const callDebtor = useCallback(() => {
     if (!debtor?.phone) return;
     void Linking.openURL(`tel:${debtor.phone}`);
   }, [debtor?.phone]);
+
+  /**
+   * Abre WhatsApp con el cobro ya redactado. No lo envía: el tendero lo revisa
+   * y pulsa enviar, que es lo que se quiere — cada cliente tiene su historia y
+   * a veces conviene cambiarle una palabra antes de mandarlo.
+   */
+  const remindByWhatsApp = useCallback(async () => {
+    if (!debtor?.phone) return;
+
+    const url = buildWhatsAppUrl(
+      debtor.phone,
+      buildDebtReminder({
+        debtorName: debtor.name,
+        businessName: getBusiness(businessId)?.name,
+        formattedBalance: formatMoney(summary.balance),
+      }),
+    );
+
+    if (!url) {
+      dialog.showError(
+        toAppError(new Error('Este cliente no tiene un número de celular guardado.')),
+      );
+      return;
+    }
+
+    try {
+      haptics.tap();
+      await Linking.openURL(url);
+    } catch (caught) {
+      // Pasa si el dispositivo no sabe abrir enlaces https (raro, pero el
+      // usuario merece enterarse en vez de ver que "no pasó nada").
+      dialog.showError(toAppError(caught));
+    }
+  }, [businessId, debtor?.name, debtor?.phone, dialog, getBusiness, summary.balance]);
 
   /* ── Parámetros incompletos ────────────────────────────────────────────── */
 
@@ -279,16 +326,41 @@ export const DebtorDetailScreen = () => {
             surface="inverse"
             size={24}
           />
-          {debtor.phone ? (
+          <View style={styles.heroActions}>
+            {/* El recordatorio solo aparece si hay celular y algo que cobrar. */}
+            {debtor.phone && hasDebt ? (
+              <IconButton
+                icon="logo-whatsapp"
+                onPress={() => void remindByWhatsApp()}
+                accessibilityLabel={`Recordar la deuda a ${debtor.name} por WhatsApp`}
+                color={theme.color.textInverse}
+                surface="inverse"
+                size={20}
+              />
+            ) : null}
+            {debtor.phone ? (
+              <IconButton
+                icon="call-outline"
+                onPress={callDebtor}
+                accessibilityLabel={`Llamar a ${debtor.name}`}
+                color={theme.color.textInverse}
+                surface="inverse"
+                size={20}
+              />
+            ) : null}
+            {/*
+              Editar va siempre disponible: es justo el cliente **sin** celular
+              el que más necesita que se le corrijan los datos.
+            */}
             <IconButton
-              icon="call-outline"
-              onPress={callDebtor}
-              accessibilityLabel={`Llamar a ${debtor.name}`}
+              icon="create-outline"
+              onPress={() => router.push(routes.client.edit(debtorId, businessId))}
+              accessibilityLabel={`Editar los datos de ${debtor.name}`}
               color={theme.color.textInverse}
               surface="inverse"
               size={20}
             />
-          ) : null}
+          </View>
         </View>
 
         <View style={styles.identity}>
@@ -479,6 +551,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderTopColor: theme.color.border,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   actions: {
     flexDirection: 'row',

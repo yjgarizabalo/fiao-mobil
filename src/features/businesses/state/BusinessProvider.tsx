@@ -29,9 +29,6 @@ import { businessApi } from '@/features/businesses/api/businessApi';
 
 const log = createLogger('business');
 
-/** Los negocios se cargan de una vez: un tendero tiene 1–5, no cientos. */
-const BUSINESS_PAGE_SIZE = 50;
-
 interface BusinessContextValue {
   businesses: Business[];
   /** Negocio con el que se está trabajando. `null` si aún no hay ninguno. */
@@ -62,14 +59,14 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const page = await businessApi.list(1, BUSINESS_PAGE_SIZE);
-      setBusinesses(page.items);
+      const items = await businessApi.listAll();
+      setBusinesses(items);
 
       // Se restaura el negocio guardado; si ya no existe (lo borraron), se
       // cae al primero disponible.
       const storedId = await getItem(StorageKeys.activeBusinessId);
       const preferred =
-        page.items.find((business) => business.id === storedId) ?? page.items[0] ?? null;
+        items.find((business) => business.id === storedId) ?? items[0] ?? null;
 
       setActiveBusinessId(preferred?.id ?? null);
       if (preferred && preferred.id !== storedId) {

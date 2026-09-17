@@ -8,7 +8,7 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/core/haptics';
 import { routes } from '@/core/navigation/routes';
@@ -57,7 +57,9 @@ export const BusinessListScreen = () => {
           tone="brand"
         />
       ) : (
-        <ScrollView
+        <FlatList
+          data={businesses}
+          keyExtractor={(business) => business.id}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -68,15 +70,11 @@ export const BusinessListScreen = () => {
               colors={[theme.color.brand]}
             />
           }
-        >
-          {businesses.map((business) => {
+          renderItem={({ item: business }) => {
             const isActive = business.id === activeBusinessId;
 
             return (
-              <View
-                key={business.id}
-                style={[styles.card, isActive ? styles.cardActive : null]}
-              >
+              <View style={[styles.card, isActive ? styles.cardActive : null]}>
                 <PressableScale
                   onPress={() => router.push(routes.tabs.clients)}
                   haptic="tap"
@@ -121,8 +119,8 @@ export const BusinessListScreen = () => {
                 ) : null}
               </View>
             );
-          })}
-        </ScrollView>
+          }}
+        />
       )}
 
       <Fab label="Nuevo negocio" onPress={() => router.push(routes.business.create)} />

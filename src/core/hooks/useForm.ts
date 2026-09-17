@@ -22,6 +22,18 @@ export interface UseFormOptions<T extends StringRecord> {
   rules?: Partial<Record<keyof T, Validator[]>>;
   /** Se ejecuta solo si la validación pasa. */
   onSubmit: (values: T) => Promise<void> | void;
+  /**
+   * Identidad de lo que se está editando (por ejemplo el `id` del cliente).
+   *
+   * Los formularios de edición se montan **antes** de que llegue el GET, así
+   * que sus `initialValues` empiezan vacíos y los de verdad aparecen después.
+   * Cuando esta clave cambia, los valores, los campos tocados y los errores
+   * del servidor se reinician con los nuevos `initialValues`.
+   *
+   * Se compara la clave y no los valores a propósito: comparar valores
+   * pisaría lo que el usuario está escribiendo en cada recarga.
+   */
+  resetKey?: string | number | null;
 }
 
 export interface UseFormResult<T extends StringRecord> {
@@ -51,6 +63,7 @@ export const useForm = <T extends StringRecord>({
   initialValues,
   rules,
   onSubmit,
+  resetKey,
 }: UseFormOptions<T>): UseFormResult<T> => {
   const [values, setValuesState] = useState<T>(initialValues);
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
@@ -61,6 +74,23 @@ export const useForm = <T extends StringRecord>({
   // Se guarda en una ref para que `submit` no cambie de identidad en cada render.
   const submitRef = useRef(onSubmit);
   submitRef.current = onSubmit;
+
+  /**
+   * Recarga los valores cuando cambia `resetKey`. Se hace durante el render y
+   * no en un `useEffect` para que el formulario nunca llegue a pintarse vacío
+   * un fotograma antes de recibir los datos.
+   */
+  const initialRef = useRef(initialValues);
+  initialRef.current = initialValues;
+  const appliedKeyRef = useRef(resetKey);
+
+  if (resetKey !== undefined && resetKey !== appliedKeyRef.current) {
+    appliedKeyRef.current = resetKey;
+    setValuesState(initialRef.current);
+    setTouched({});
+    setServerErrors({});
+    setSubmitAttempted(false);
+  }
 
   const errors = useMemo(() => {
     const result: Record<string, string> = {};

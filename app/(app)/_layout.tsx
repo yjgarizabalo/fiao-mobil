@@ -28,6 +28,7 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="client/[id]" />
       <Stack.Screen name="client/new" options={{ presentation: formPresentation }} />
+      <Stack.Screen name="client/edit" options={{ presentation: formPresentation }} />
       <Stack.Screen name="business/new" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/profile" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/security" options={{ presentation: formPresentation }} />

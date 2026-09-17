@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { routes } from '@/core/navigation/routes';
 import { getFirstName, pluralize } from '@/core/utils/format';
-import { type Debtor, debtorBalance, displayName } from '@/domain/models';
+import { type BusinessSummary, displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
@@ -41,21 +41,25 @@ import {
 } from '@/ui';
 import { theme } from '@/theme';
 
-/** Cuántos clientes con deuda se muestran en el resumen. */
+/** Cuántos clientes con deuda se listan en el inicio; el ranking lo arma el servidor. */
 const TOP_DEBTORS = 5;
-/** Se pide una página amplia para calcular el total del negocio. */
-const SUMMARY_PAGE_SIZE = 100;
 
 export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
   const { activeBusinessId, activeBusiness, isEmpty: hasNoBusiness } = useBusinesses();
 
-  const debtors = useAsyncData<Debtor[]>(
+  /**
+   * Los totales los calcula el servidor. Antes se pedía una página de 100
+   * clientes y se sumaba aquí, pero el backend tope el `limit` en 100: a
+   * partir de ese número el "total por cobrar" salía corto y nada lo avisaba.
+   * De paso el ranking viene ordenado por saldo desde la base de datos, así
+   * que un moroso antiguo ya no se queda fuera por no caber en la página.
+   */
+  const debtors = useAsyncData<BusinessSummary | null>(
     async () => {
-      if (!activeBusinessId) return [];
-      const page = await debtorApi.listByBusiness(activeBusinessId, 1, SUMMARY_PAGE_SIZE);
-      return page.items;
+      if (!activeBusinessId) return null;
+      return debtorApi.getSummary(activeBusinessId, TOP_DEBTORS);
     },
     { enabled: Boolean(activeBusinessId), deps: [activeBusinessId] },
   );
@@ -69,17 +73,14 @@ export const HomeScreen = () => {
   );
 
   const summary = useMemo(() => {
-    const list = debtors.data ?? [];
-    const withDebt = list
-      .filter((debtor) => debtorBalance(debtor) > 0)
-      .sort((a, b) => debtorBalance(b) - debtorBalance(a));
+    const data = debtors.data;
 
     return {
-      total: withDebt.reduce((sum, debtor) => sum + debtorBalance(debtor), 0),
-      withDebtCount: withDebt.length,
-      clearCount: list.length - withDebt.length,
-      topDebtors: withDebt.slice(0, TOP_DEBTORS),
-      isEmpty: list.length === 0,
+      total: data?.totalBalance ?? 0,
+      withDebtCount: data?.debtorsWithDebt ?? 0,
+      clearCount: data?.debtorsClear ?? 0,
+      topDebtors: data?.topDebtors ?? [],
+      isEmpty: (data?.totalDebtors ?? 0) === 0,
     };
   }, [debtors.data]);
 

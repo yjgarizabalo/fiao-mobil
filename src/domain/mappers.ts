@@ -7,7 +7,7 @@
  * datos limpios y tipados, así que ninguna pantalla necesita `Number(x)` ni
  * `?? 0` defensivos.
  */
-import { toAmount } from '@/core/http/payload';
+import { toAmount, toList } from '@/core/http/payload';
 import {
   type DebtStatus,
   type DocumentType,
@@ -15,7 +15,14 @@ import {
   type TransactionType,
   isDocumentType,
 } from './constants';
-import type { Business, Debt, Debtor, Payment, User } from './models';
+import type {
+  Business,
+  BusinessSummary,
+  Debt,
+  Debtor,
+  Payment,
+  User,
+} from './models';
 
 type Raw = Record<string, unknown>;
 
@@ -113,6 +120,23 @@ export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
         ? (balance ?? 0) > 0 || (totalBalance ?? 0) > 0
         : asBoolean(data.hasPendingDebt),
     businessId: asString(data.businessId) || relationId(data.business) || businessId,
+  };
+};
+
+/**
+ * `GET /debtors/summary`. Los conteos vienen como números, pero pasan por
+ * `toAmount` igual que los importes por si el driver los serializa como
+ * string: es la frontera, y aquí se tolera esa rareza en vez de en la pantalla.
+ */
+export const mapBusinessSummary = (raw: unknown, businessId?: string): BusinessSummary => {
+  const data = (raw ?? {}) as Raw;
+
+  return {
+    totalBalance: toAmount(data.totalBalance),
+    totalDebtors: toAmount(data.totalDebtors),
+    debtorsWithDebt: toAmount(data.debtorsWithDebt),
+    debtorsClear: toAmount(data.debtorsClear),
+    topDebtors: toList<unknown>(data.topDebtors).map((item) => mapDebtor(item, businessId)),
   };
 };
 

@@ -6,18 +6,44 @@
  */
 import { businessHeader, http } from '@/core/http/client';
 import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
-import { mapDebtor } from '@/domain/mappers';
-import type { Debtor, DebtorDraft } from '@/domain/models';
+import { mapBusinessSummary, mapDebtor } from '@/domain/mappers';
+import type { BusinessSummary, Debtor, DebtorDraft } from '@/domain/models';
+
+/**
+ * Texto de búsqueda para el backend.
+ *
+ * El servidor busca sobre una columna `searchText` ya normalizada (minúsculas
+ * y sin tildes), así que "jose" encuentra a "José". Se manda `undefined`
+ * cuando está vacío para no ensuciar la URL con `search=`.
+ */
+const searchParam = (search?: string): string | undefined => {
+  const trimmed = search?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+};
+
+/** Filtros del listado que resuelve el servidor. */
+export interface DebtorListQuery {
+  search?: string;
+  /** `true` solo con saldo, `false` solo al día, `undefined` todos. */
+  hasDebt?: boolean;
+}
 
 export const debtorApi = {
-  /** `GET /debtors` — clientes de un negocio concreto. */
+  /**
+   * `GET /debtors` — clientes de un negocio concreto.
+   *
+   * La búsqueda va al servidor, no se filtra en el móvil: con paginación, un
+   * filtro local solo miraría la página cargada y no encontraría al cliente
+   * que está en la página 8.
+   */
   listByBusiness: async (
     businessId: string,
     page = 1,
     limit = DEFAULT_PAGE_SIZE,
+    query: DebtorListQuery = {},
   ): Promise<Page<Debtor>> => {
     const { data } = await http.get('/debtors', {
-      params: { page, limit },
+      params: { page, limit, search: searchParam(query.search), hasDebt: query.hasDebt },
       ...businessHeader(businessId),
     });
     const raw = toPage<unknown>(data, page, limit);
@@ -27,10 +53,31 @@ export const debtorApi = {
   },
 
   /** `GET /debtors/me/all` — clientes de todos los negocios del usuario. */
-  listAll: async (page = 1, limit = DEFAULT_PAGE_SIZE): Promise<Page<Debtor>> => {
-    const { data } = await http.get('/debtors/me/all', { params: { page, limit } });
+  listAll: async (
+    page = 1,
+    limit = DEFAULT_PAGE_SIZE,
+    query: DebtorListQuery = {},
+  ): Promise<Page<Debtor>> => {
+    const { data } = await http.get('/debtors/me/all', {
+      params: { page, limit, search: searchParam(query.search), hasDebt: query.hasDebt },
+    });
     const raw = toPage<unknown>(data, page, limit);
     return { items: raw.items.map((item) => mapDebtor(item)), meta: raw.meta };
+  },
+
+  /**
+   * `GET /debtors/summary` — totales del negocio calculados por el servidor.
+   *
+   * Sustituye a "traer una página de clientes y sumar en el móvil", que daba
+   * una cifra menor que la real en cuanto el negocio pasaba de 100 clientes.
+   * Devuelve además el ranking de morosos ya ordenado en la base de datos.
+   */
+  getSummary: async (businessId: string, top = 5): Promise<BusinessSummary> => {
+    const { data } = await http.get('/debtors/summary', {
+      params: { top },
+      ...businessHeader(businessId),
+    });
+    return mapBusinessSummary(toItem(data), businessId);
   },
 
   /** `GET /debtors/:id` */
@@ -42,6 +89,29 @@ export const debtorApi = {
   /** `POST /debtors` */
   create: async (businessId: string, draft: DebtorDraft): Promise<Debtor> => {
     const { data } = await http.post('/debtors', draft, businessHeader(businessId));
+    return mapDebtor(toItem(data), businessId);
+  },
+
+  /**
+   * `PATCH /debtors/:id` — corrige los datos de un cliente.
+   *
+   * El backend acepta campos sueltos (el DTO es un `PartialType`), así que se
+   * manda solo lo que cambió. Exige rol `ADMIN` u `OWNER` en el negocio; el
+   * tendero que creó el negocio es `OWNER`, pero un `CASHIER` recibirá un 403.
+   *
+   * Ojo: el deudor **no** se puede editar si está inactivado; en ese caso el
+   * backend responde 404, no un 409.
+   */
+  update: async (
+    debtorId: string,
+    businessId: string,
+    changes: Partial<DebtorDraft>,
+  ): Promise<Debtor> => {
+    const { data } = await http.patch(
+      `/debtors/${debtorId}`,
+      changes,
+      businessHeader(businessId),
+    );
     return mapDebtor(toItem(data), businessId);
   },
 };
