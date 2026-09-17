@@ -15,6 +15,7 @@ import {
   type ReactNode,
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -82,7 +83,13 @@ export const TextField = forwardRef<TextFieldHandle, TextFieldProps>(
 
     const focusProgress = useSharedValue(0);
     const errorProgress = useSharedValue(error ? 1 : 0);
-    errorProgress.value = withTiming(error ? 1 : 0, { duration: theme.duration.fast });
+
+    // La transición a rojo se dispara en un efecto, nunca durante el render:
+    // escribir un shared value mientras React renderiza rompe la garantía de
+    // render puro de Reanimated 4 y emite un warning en modo estricto.
+    useEffect(() => {
+      errorProgress.value = withTiming(error ? 1 : 0, { duration: theme.duration.fast });
+    }, [error, errorProgress]);
 
     useImperativeHandle(ref, () => ({
       focus: () => inputRef.current?.focus(),
