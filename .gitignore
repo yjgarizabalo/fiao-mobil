@@ -32,12 +32,12 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files — se ignora cualquier .env*, salvo la plantilla.
+# El patrón es amplio a propósito: listarlos uno por uno dejó fuera .env.qa,
+# que se habría commiteado con lo que tuviera dentro.
 .env
-.env.local
-.env.dev
-.env.prd
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

@@ -1,0 +1,48 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_ENVIRONMENT": "dev",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REEMPLAZAR-CON-TU-API-PUBLICA/api",
+        "EXPO_PUBLIC_API_AUTH_PREFIX": "/auth",
+        "EXPO_PUBLIC_API_TIMEOUT_MS": "20000"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENVIRONMENT": "prd",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REEMPLAZAR-CON-TU-API-PUBLICA/api",
+        "EXPO_PUBLIC_API_AUTH_PREFIX": "/auth",
+        "EXPO_PUBLIC_API_TIMEOUT_MS": "20000"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

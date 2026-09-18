@@ -5,7 +5,13 @@ clientes que compran a crédito, deudas que se acumulan y pagos que abonan ese s
 
 Este proyecto es la **refactorización del v1** (`../fiao-mobil`), con el mismo backend y las
 mismas funcionalidades, pero con arquitectura por capas, design system propio y las versiones
-de React/Expo congeladas. El detalle de qué cambió y por qué está en `MIGRACION.md`.
+de React/Expo congeladas. El detalle de qué cambió y por qué está en
+`claude/migraciones/v1-a-v2-arquitectura.md`.
+
+> **Dónde va cada documento.** Este archivo son las **reglas**: lo que hay que cumplir en
+> cada cambio. El **porqué** —migraciones, refactorizaciones, despliegue y la bitácora de
+> cada sesión— vive en la carpeta [`claude/`](claude/README.md), con su propio índice.
+> Un documento nuevo de contexto va ahí, no suelto en la raíz.
 
 > **Documento organizado en fases.** Léelas en orden la primera vez; después ve a la que
 > corresponda. Las **Fases 0 y 8** son de cumplimiento obligatorio en todo cambio.
@@ -25,7 +31,12 @@ react         19.1.0
 react-native  0.81.4
 ```
 
-`npx expo-doctor` pasa **18/18** con estos pines. Está **prohibido** sin autorización explícita:
+`npx expo-doctor` reporta hoy **17/18**: el único check que falla es «packages match versions
+required by installed Expo SDK», por deriva de parche en `expo-router`, `expo-splash-screen` y
+`expo-status-bar` (el registro avanzó, el proyecto no). Es un aviso, **no** rompe el build ni
+EAS. No se arregla solo: subirlos exige autorización y volver a probar en las dos plataformas.
+
+Está **prohibido** sin autorización explícita:
 
 - `npm update`, `npx expo install --fix`, `npm audit fix`, bumps a mano en `package.json`.
 - Subir el SDK de Expo o cualquier `expo-*` de forma individual.
@@ -379,8 +390,9 @@ editar Gradle a mano ni resolver conflictos en archivos nativos.
 
 - `app.json`: `newArchEnabled: true`, `edgeToEdgeEnabled: true` (Android),
   `supportsTablet: true` (iOS), `orientation: portrait`, bundle/package `com.yair77.fiao`.
-- **EAS Build sigue sin configurar** (el v1 tenía `eas.json` vacío). Para compilar iOS desde
-  Windows o publicar en las tiendas hay que ejecutar `eas init` y crear `eas.json`.
+- **EAS Build ya está configurado** (`eas.json` con los perfiles `development`, `preview` y
+  `production`). Es lo que permite compilar el APK de demostración, y compilar iOS desde
+  Windows sin tener un Mac. El detalle está en la **Fase 11**.
 
 ### Reglas de paridad
 
@@ -415,7 +427,14 @@ npm run typecheck        # tsc --noEmit          ← debe quedar en 0
 npm run lint             # expo lint             ← debe quedar en 0
 npm run env:dev          # activa .env.dev
 npx expo export --platform android --platform ios   # compila los bundles: verificación real
-npx expo-doctor          # 18/18 con los pines actuales
+npx expo-doctor          # 17/18: falla solo el check de versiones (ver Fase 0.1)
+
+# EAS Build (requiere `npm install -g eas-cli` y `eas login`)
+npm run build:android        # APK de demostración (perfil preview)
+npm run build:android:prod   # AAB para Google Play (perfil production)
+npm run build:android:dev    # APK con development client (perfil development)
+npm run build:ios            # IPA (perfil preview) — compila en la nube, no hace falta Mac
+npm run builds               # últimos 10 builds y su estado
 ```
 
 ---
@@ -434,5 +453,115 @@ npx expo-doctor          # 18/18 con los pines actuales
 - [ ] ¿La respuesta pasa por un mapper de `@/domain/mappers`?
 - [ ] ¿Los errores llegan al usuario (`useDialog` / `useToast`), no solo a la consola?
 - [ ] ¿Hay estado de carga (skeleton), vacío y error?
-- [ ] ¿Las versiones siguen intactas? (`package.json` y `package-lock.json` sin tocar)
+- [ ] ¿Las versiones siguen intactas? (`dependencies` de `package.json` y `package-lock.json`
+      sin tocar)
+- [ ] Si el cambio toca `app.json`, `eas.json` o una variable `EXPO_PUBLIC_*`:
+      ¿se actualizó también el bloque `env` del perfil correspondiente en `eas.json`?
+      (el `.env` local **no** viaja a EAS — ver Fase 11)
 - [ ] ¿Se dijo con claridad qué se probó y qué no?
+
+---
+
+## FASE 11 — Despliegue con EAS Build
+
+Compilar en la nube de Expo en vez de en la máquina. Resuelve dos cosas que este proyecto
+necesita: entregarle un **APK instalable** a un cliente sin pasar por Google Play, y compilar
+**iOS desde Windows** (EAS tiene los Mac; aquí no hay ninguno).
+
+Encaja con la CNG de la Fase 8: EAS corre `expo prebuild` en el servidor a partir de
+`app.json`, así que `android/` e `ios/` siguen sin estar en el repo.
+
+El detalle completo está en [`claude/despliegue/`](claude/despliegue/eas-build-android.md);
+esta fase es el resumen operativo.
+
+### 11.1 La regla que rompe todo si se olvida ⚠️
+
+**El `.env` no viaja a EAS.** Está en `.gitignore`, y EAS Build sube al servidor solo lo que
+git conoce. Un build que dependa del `.env` local sale con la URL del API vacía y la app
+falla en cuanto el usuario intenta entrar.
+
+Por eso las variables `EXPO_PUBLIC_*` están declaradas **dentro de `eas.json`**, en el bloque
+`env` de cada perfil. Son las mismas que documenta la Fase 5 y siguen sin poder contener
+secretos: `EXPO_PUBLIC_` significa que el valor queda escrito dentro del bundle y cualquiera
+puede leerlo descompilando el APK.
+
+Si agregas o cambias una variable en `.env`, **agrégala también en `eas.json`** en los
+perfiles `preview` y `production`. El `.env` sirve para `npm start`; `eas.json` para los
+builds de la nube.
+
+El perfil `development` es la excepción y no declara `env`: ese build carga el JavaScript
+desde tu Metro local, así que aplica tu `.env` de la máquina en tiempo real.
+
+### 11.2 Requisitos, una sola vez
+
+```bash
+npm install -g eas-cli        # el CLI es global a propósito: no toca las versiones del proyecto
+eas login                     # tu cuenta de expo.dev ES tu cuenta de EAS, es el mismo login
+eas init                      # vincula el repo y escribe extra.eas.projectId en app.json
+```
+
+`eas init` es el único paso que modifica `app.json`: le añade el `projectId`. Ese cambio
+**sí se commitea**, porque identifica el proyecto ante EAS.
+
+`eas-cli` se instala global y **no** se agrega a `dependencies`: la Fase 0 congela las
+versiones del proyecto y un CLI de build no tiene por qué entrar en ese contrato.
+
+### 11.3 Los perfiles de `eas.json`
+
+| Perfil        | Artefacto Android   | Para qué                                                    |
+| ------------- | ------------------- | ----------------------------------------------------------- |
+| `development` | APK (debug)         | Development client: probar en dispositivo con Metro local   |
+| `preview`     | **APK**             | **Demostración a clientes**: se instala desde un link       |
+| `production`  | AAB (`app-bundle`)  | Subir a Google Play (Play solo acepta AAB)                  |
+
+`preview` y `production` usan `distribution: internal` / tienda respectivamente. Un **APK** se
+instala directo desde el link que devuelve EAS; un **AAB** no se puede instalar a mano, solo
+subir a Play. Para mostrarle la app a alguien, siempre `preview`.
+
+`development` requiere además `npx expo install expo-dev-client`, que hoy **no** está
+instalado: ese perfil no funcionará hasta que se agregue.
+
+### 11.4 Compilar el APK de demostración (Android)
+
+```bash
+npm run build:android        # eas build --platform android --profile preview
+```
+
+EAS pregunta por el **keystore** la primera vez; deja que lo genere y lo guarde él
+(`Generate new keystore`). Es la firma de la app: si se pierde, Google Play ya no acepta
+actualizaciones de ese paquete. Queda en la cuenta de Expo y se recupera con
+`eas credentials`.
+
+Al terminar, EAS devuelve un link y un QR. El cliente abre el link en el celular, descarga el
+APK y Android le pedirá permitir «instalar apps de origen desconocido» — es normal fuera de
+Play y conviene avisarlo antes de la demostración.
+
+`npm run builds` lista los últimos builds con su estado y su link, por si se cerró la terminal.
+
+### 11.5 Versión y `versionCode`
+
+`eas.json` declara `appVersionSource: "remote"`: **EAS lleva la cuenta** del `versionCode` de
+Android y del `buildNumber` de iOS, y el perfil `production` los incrementa solo
+(`autoIncrement: true`). No los edites a mano en `app.json`.
+
+Lo que sí se edita a mano es `expo.version` de `app.json` (`1.0.0`), que es la versión que ve
+el usuario. Súbela cuando el cambio lo amerite.
+
+### 11.6 Pendientes conocidos
+
+- **No hay backend público.** `eas.json` lleva el placeholder
+  `https://REEMPLAZAR-CON-TU-API-PUBLICA/api`. Hasta que el API de `../fiao-backend` esté
+  desplegado con HTTPS, el APK compila pero **no conecta**. Mientras tanto se puede probar
+  contra el backend local a través de un túnel HTTPS: ver
+  [`claude/despliegue/probar-con-backend-local.md`](claude/despliegue/probar-con-backend-local.md).
+- **HTTPS obligatorio.** Android bloquea el tráfico HTTP plano desde Android 9. Si el API
+  quedara en `http://`, hay que instalar `expo-build-properties` y habilitar
+  `usesCleartextTraffic` en `app.json` — mejor desplegar con HTTPS que abrir ese agujero.
+- **EAS Update no está configurado** (no hay `expo-updates` ni canales). Cada cambio exige
+  recompilar; no hay actualizaciones por aire.
+- **EAS Submit** tiene el bloque `production` vacío: falta la cuenta de servicio de Google
+  Play para poder subir con `eas submit`.
+- **iOS**: `npm run build:ios` funciona desde Windows, pero exige una cuenta de **Apple
+  Developer de pago** (99 USD/año) y, para repartir la demo, registrar los UDID de los
+  dispositivos (`eas device:create`) o pasar por TestFlight. Android no tiene ese requisito,
+  por eso va primero.
