@@ -7,8 +7,15 @@
  *  - `SafeAreaProvider`, que alimenta los insets reales del dispositivo;
  *  - `SessionProvider` + `BusinessProvider`, el único estado verdaderamente
  *    global, y `ToastProvider` para los avisos.
+ *
+ * `preventAutoHideAsync` se llama aquí, antes de montar nada: es el archivo
+ * que expo-router garantiza cargar primero, así que es el único punto donde
+ * podemos estar seguros de ganarle al ocultamiento automático del splash
+ * nativo. Quien lo oculta de verdad es `EntryScreen` (`app/index.tsx`), una
+ * vez que su propio splash de marca ya está pintado en pantalla.
  */
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
@@ -17,6 +24,8 @@ import { SessionProvider } from '@/features/auth/session/SessionProvider';
 import { BusinessProvider } from '@/features/businesses/state/BusinessProvider';
 import { ToastProvider } from '@/ui';
 import { theme } from '@/theme';
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
