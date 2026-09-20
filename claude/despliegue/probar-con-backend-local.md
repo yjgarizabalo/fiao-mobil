@@ -142,6 +142,77 @@ opción B. **No la uses** salvo que no puedas abrir un túnel.
 
 ---
 
+## Anexo — ngrok en esta máquina (Linux), con dominio fijo reservado
+
+`eas.json` ya tiene el perfil `preview` apuntando a un dominio **fijo** reservado en la
+cuenta de ngrok: `https://cheekier-roxann-cleistogamously.ngrok-free.dev/api`. La gracia de
+un dominio fijo (a diferencia del aleatorio que ngrok da por defecto) es que **el APK ya
+compilado sigue sirviendo sin recompilar**, mientras el túnel se abra siempre contra ese
+mismo dominio: solo hay que levantar el backend y el túnel cada vez que se quiera hacer una
+demo.
+
+### Instalación (una sola vez por máquina)
+
+Esta máquina es Linux y no traía ngrok (el v1 se instaló en un equipo distinto). Se instala
+desde el repositorio oficial:
+
+```bash
+curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+sudo apt update
+sudo apt install ngrok
+```
+
+### Autenticación (una sola vez por máquina)
+
+1. Copia el authtoken de tu cuenta en https://dashboard.ngrok.com/get-started/your-authtoken
+2. `ngrok config add-authtoken <TU_TOKEN>`
+
+Queda guardado en `~/.config/ngrok/ngrok.yml`, fuera del repo. **Nunca** pegues el token en
+código, en `.env` ni en un commit.
+
+### Uso diario — levantar la demo
+
+```bash
+# 1. Backend, en una terminal
+cd ../fiao-backend
+npm run start:local              # queda en http://localhost:3000
+
+# 2. Túnel, en otra terminal — SIEMPRE contra el mismo dominio reservado
+ngrok http 3000 --url=https://cheekier-roxann-cleistogamously.ngrok-free.dev
+```
+
+(Las versiones nuevas de ngrok avisan que `--domain` quedó obsoleto a favor de `--url`;
+hacen lo mismo, pero usa `--url` de aquí en adelante.)
+
+### Verificar antes de avisarle a nadie
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  https://cheekier-roxann-cleistogamously.ngrok-free.dev/api/business \
+  -A "okhttp/4.9.2"
+```
+
+Debe devolver **401**. Si no responde o devuelve otra cosa: revisa que
+`npm run start:local` siga corriendo en el puerto 3000 y que la terminal del túnel no se
+haya cerrado.
+
+### ¿Hay que recompilar el APK?
+
+**No**, mientras el túnel siga usando ese mismo dominio fijo — es exactamente el que ya
+tiene quemado el build de `preview`. Solo haría falta `npm run build:android` de nuevo si:
+
+- Se reserva un dominio distinto en ngrok.
+- Se cambia cualquier otra variable `EXPO_PUBLIC_*` en `eas.json`.
+
+### Al terminar la demo
+
+`Ctrl+C` en la terminal del túnel y en la del backend. Mientras el túnel está abierto, la
+base de datos local queda alcanzable desde internet a través del API (Fase de seguridad de
+la Opción B de arriba aplica igual): no lo dejes corriendo de un día para otro.
+
+---
+
 ## Cuando llegue la URL real
 
 1. Reemplazar `https://REEMPLAZAR-CON-TU-API-PUBLICA/api` en los perfiles `preview` y
