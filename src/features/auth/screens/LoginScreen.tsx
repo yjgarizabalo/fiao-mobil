@@ -7,11 +7,17 @@
  *
  * El identificador acepta correo **o** número de documento, como en el v1: el
  * tendero suele recordar su cédula antes que su correo.
+ *
+ * Esta pantalla no usa `<Screen keyboardAware>` porque el héroe necesita ir
+ * detrás de la hoja del formulario; por eso repite un `KeyboardAvoidingView`
+ * propio, con la misma librería (`react-native-keyboard-controller`) y el
+ * mismo `behavior="padding"` que usa `Screen`.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
@@ -84,10 +90,7 @@ export const LoginScreen = () => {
         </View>
       </LinearGradient>
 
-      <KeyboardAvoidingView
-        style={styles.formHost}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.formHost} behavior="padding">
         <ScrollView
           style={styles.sheet}
           contentContainerStyle={[

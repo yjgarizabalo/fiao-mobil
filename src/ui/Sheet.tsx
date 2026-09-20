@@ -11,12 +11,16 @@
  *  - la animación de salida se completa antes de desmontar, para que no
  *    "desaparezca de golpe";
  *  - `KeyboardAvoidingView` interno porque casi todas las hojas tienen inputs.
+ *    Es el de `react-native-keyboard-controller`, no el de React Native: el
+ *    nativo se dejaba **sin comportamiento en Android** (`behavior: undefined`)
+ *    porque dentro de un `Modal` con `statusBarTranslucent` no calculaba bien
+ *    la altura del teclado, así que los formularios de las hojas (fiar,
+ *    registrar pago) nunca lo evitaban. `behavior="padding"` con esta librería
+ *    sí funciona igual en las dos plataformas, incluso dentro del `Modal`.
  */
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +28,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -177,7 +182,7 @@ export const Sheet = ({
 
         <KeyboardAvoidingView
           style={styles.keyboardHost}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           pointerEvents="box-none"
         >
           <GestureDetector gesture={panGesture}>
