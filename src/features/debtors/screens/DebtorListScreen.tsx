@@ -16,29 +16,34 @@
  * un negocio concreto cuando llega `businessId` por parámetro.
  */
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
+import { haptics } from '@/core/haptics';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useDebouncedValue } from '@/core/hooks/useDebouncedValue';
 import { usePagedList } from '@/core/hooks/usePagedList';
 import { routes } from '@/core/navigation/routes';
-import { formatMoney } from '@/core/utils/format';
-import type { Debtor } from '@/domain/models';
+import { formatMoney, pluralize } from '@/core/utils/format';
+import { type Debtor, debtorBalance } from '@/domain/models';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { DebtorRow } from '@/features/debtors/components/DebtorRow';
+import { WhatsAppBulkSheet } from '@/features/debtors/components/WhatsAppBulkSheet';
 import {
   AppBar,
+  Button,
   EmptyState,
   ErrorState,
   Fab,
   ListFooterLoader,
   ListSkeleton,
+  PressableScale,
   Screen,
   SearchBar,
   SegmentedControl,
   Text,
+  useToast,
 } from '@/ui';
 import { theme } from '@/theme';
 
@@ -62,6 +67,18 @@ export const DebtorListScreen = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [scope, setScope] = useState<Scope>('business');
   const debouncedSearch = useDebouncedValue(search, 220);
+  const toast = useToast();
+
+  /**
+   * Selección múltiple para el envío de recordatorios por WhatsApp. Se guarda
+   * el `Debtor` completo (no solo el id): la búsqueda y el filtro recargan
+   * `list.items` desde el servidor, así que un cliente seleccionado antes de
+   * teclear en el buscador debe seguir disponible aunque ya no esté en la
+   * página cargada.
+   */
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selected, setSelected] = useState<Map<string, Debtor>>(new Map());
+  const [isSendSheetOpen, setIsSendSheetOpen] = useState(false);
 
   /**
    * El conmutador de alcance solo tiene sentido con más de un negocio y
@@ -144,6 +161,69 @@ export const DebtorListScreen = () => {
     [businessId],
   );
 
+  /* ── Selección múltiple y envío por WhatsApp ─────────────────────────────
+   * "Masivo" es abrir WhatsApp uno por uno con el mensaje ya escrito (ver
+   * `WhatsAppBulkSheet`); esto solo arma la lista de a quién.
+   */
+
+  // Cambiar de negocio o de alcance es cambiar el universo de clientes: una
+  // selección hecha en el otro contexto ya no tiene sentido.
+  useEffect(() => {
+    setSelected(new Map());
+  }, [businessId, effectiveScope]);
+
+  const toggleSelectionMode = useCallback(() => {
+    if (isSelecting) {
+      setIsSelecting(false);
+      setSelected(new Map());
+      return;
+    }
+    haptics.tap();
+    setIsSelecting(true);
+    // Solo tiene sentido recordarle a quien debe: se arranca ya filtrado ahí.
+    setStatusFilter('debt');
+  }, [isSelecting]);
+
+  const toggleSelected = useCallback((debtor: Debtor) => {
+    setSelected((current) => {
+      const next = new Map(current);
+      if (next.has(debtor.id)) next.delete(debtor.id);
+      else next.set(debtor.id, debtor);
+      return next;
+    });
+  }, []);
+
+  const selectAllEligible = useCallback(() => {
+    haptics.select();
+    setSelected((current) => {
+      const next = new Map(current);
+      for (const debtor of list.items) {
+        if (debtor.phone.length > 0 && debtorBalance(debtor) > 0) next.set(debtor.id, debtor);
+      }
+      return next;
+    });
+  }, [list.items]);
+
+  const resolveBusinessName = useCallback(
+    (debtor: Debtor) => (debtor.businessId ? getBusiness(debtor.businessId)?.name : undefined),
+    [getBusiness],
+  );
+
+  const handleSendSheetClose = useCallback(
+    (sentCount: number) => {
+      setIsSendSheetOpen(false);
+      if (sentCount === 0) return;
+      // Solo se limpia la selección si de verdad se mandó algo: si el
+      // tendero cerró sin enviar nada, prefiere seguir donde iba.
+      toast.success(pluralize(sentCount, 'recordatorio enviado', 'recordatorios enviados'));
+      setIsSelecting(false);
+      setSelected(new Map());
+    },
+    [toast],
+  );
+
+  const selectedDebtors = useMemo(() => Array.from(selected.values()), [selected]);
+
   /* ── Sin negocio todavía ───────────────────────────────────────────────── */
 
   if (hasNoBusiness || (!businessId && effectiveScope !== 'all')) {
@@ -165,12 +245,32 @@ export const DebtorListScreen = () => {
   const isSearching = debouncedSearch.trim().length > 0 || statusFilter !== 'all';
 
   return (
-    <Screen>
+    <Screen
+      footer={
+        isSelecting ? (
+          <Button
+            label={
+              selectedDebtors.length > 0
+                ? `Enviar a ${selectedDebtors.length}`
+                : 'Elige a quién recordarle'
+            }
+            icon="logo-whatsapp"
+            onPress={() => setIsSendSheetOpen(true)}
+            disabled={selectedDebtors.length === 0}
+            size="lg"
+            fullWidth
+          />
+        ) : undefined
+      }
+    >
       <AppBar
         title={isFilteredByParam ? (business?.name ?? 'Clientes') : 'Clientes'}
         subtitle={isFilteredByParam ? 'Clientes de este negocio' : undefined}
         onBack={isFilteredByParam ? () => router.back() : undefined}
         large={!isFilteredByParam}
+        actionIcon={isSelecting ? 'close' : 'checkbox-outline'}
+        actionLabel={isSelecting ? 'Cancelar selección' : 'Seleccionar clientes'}
+        onAction={toggleSelectionMode}
       />
 
       <View style={styles.controls}>
@@ -201,7 +301,29 @@ export const DebtorListScreen = () => {
           ]}
         />
 
-        {totalOwed > 0 ? (
+        {isSelecting ? (
+          <View style={styles.totalRow}>
+            <Text variant="caption" color="textMuted">
+              {selectedDebtors.length > 0
+                ? pluralize(
+                    selectedDebtors.length,
+                    'cliente seleccionado',
+                    'clientes seleccionados',
+                  )
+                : 'Toca a quien le quieras recordar'}
+            </Text>
+            <PressableScale
+              onPress={selectAllEligible}
+              haptic="select"
+              accessibilityRole="button"
+              accessibilityLabel="Seleccionar a todos los que deben"
+            >
+              <Text variant="captionStrong" color="brandStrong">
+                Seleccionar todos
+              </Text>
+            </PressableScale>
+          </View>
+        ) : totalOwed > 0 ? (
           <View style={styles.totalRow}>
             <Text variant="caption" color="textMuted">
               Total por cobrar
@@ -232,7 +354,9 @@ export const DebtorListScreen = () => {
           renderItem={({ item }) => (
             <DebtorRow
               debtor={item}
-              onPress={() => openDebtor(item)}
+              onPress={() => (isSelecting ? toggleSelected(item) : openDebtor(item))}
+              selectable={isSelecting}
+              selected={selected.has(item.id)}
               businessName={
                 effectiveScope === 'all' && item.businessId
                   ? getBusiness(item.businessId)?.name
@@ -295,9 +419,16 @@ export const DebtorListScreen = () => {
         />
       )}
 
-      {businessId ? (
+      {businessId && !isSelecting ? (
         <Fab label="Agregar" onPress={() => router.push(routes.client.create(businessId))} />
       ) : null}
+
+      <WhatsAppBulkSheet
+        visible={isSendSheetOpen}
+        debtors={selectedDebtors}
+        getBusinessName={resolveBusinessName}
+        onClose={handleSendSheetClose}
+      />
     </Screen>
   );
 };

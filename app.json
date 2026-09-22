@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yair77.fiao"
+      "bundleIdentifier": "com.yair77.fiao",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +34,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/icon-blanco.png",
-          "imageWidth": 220,
+          "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#0B0F14"
         }

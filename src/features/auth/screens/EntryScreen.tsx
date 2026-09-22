@@ -127,8 +127,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   logo: {
-    width: 176,
-    height: 71,
+    width: 128,
+    height: 52,
     marginBottom: theme.spacing.sm,
   },
   spinner: {
