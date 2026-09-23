@@ -11,6 +11,8 @@
  * confirma el tendero. No hay envío automático ni masivo: eso exigiría la
  * WhatsApp Business API de Meta, con número verificado y plantillas aprobadas.
  */
+import { Linking } from 'react-native';
+
 import { digitsOnly } from '@/core/utils/format';
 
 /** Indicativo de Colombia: el formulario pide 10 dígitos, sin país. */
@@ -70,4 +72,26 @@ export const buildWhatsAppUrl = (phone: string, message: string): string | null 
   const number = toWhatsAppNumber(phone);
   if (!number) return null;
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+};
+
+/**
+ * `true` si el sistema puede abrir WhatsApp en este dispositivo.
+ *
+ * Antes de lanzar una cola de varios recordatorios seguidos tiene sentido
+ * comprobar esto una sola vez: si el tendero no tiene WhatsApp, abrir `wa.me`
+ * N veces solo termina en el navegador N veces, sin avisarle por qué.
+ *
+ * Depende de que la app declare el esquema `whatsapp://` en la configuración
+ * nativa (`app.json` → `ios.infoPlist.LSApplicationQueriesSchemes` y el
+ * plugin `withWhatsAppQueries` para Android 11+). Sin esa declaración, el
+ * sistema operativo siempre responde que no — por eso este chequeo solo es
+ * confiable en un build nativo real (development client o el APK/IPA de
+ * EAS), no dentro de Expo Go.
+ */
+export const isWhatsAppAvailable = async (): Promise<boolean> => {
+  try {
+    return await Linking.canOpenURL('whatsapp://send');
+  } catch {
+    return false;
+  }
 };

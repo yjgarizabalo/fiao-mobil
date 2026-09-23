@@ -51,6 +51,9 @@ export const DebtDetailSheet = ({
       visible={visible}
       onClose={onClose}
       title={debt.description || 'Deuda'}
+      // Sin límite de líneas: esta hoja es justo donde un nombre truncado con
+      // puntos suspensivos en el extracto (`MovementRow`) se lee completo.
+      titleNumberOfLines={0}
       subtitle={`Fiada el ${formatDate(debt.createdAt ?? debt.dueDate)}`}
       scrollable
       footer={

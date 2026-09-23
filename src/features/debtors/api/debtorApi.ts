@@ -28,6 +28,12 @@ export interface DebtorListQuery {
   hasDebt?: boolean;
 }
 
+/**
+ * Tope de `top` para `/debtors/summary`. El backend no lo valida, así que
+ * queda aquí: ningún llamador debe poder pedir un ranking más grande que este.
+ */
+const MAX_SUMMARY_TOP = 50;
+
 export const debtorApi = {
   /**
    * `GET /debtors` — clientes de un negocio concreto.
@@ -71,10 +77,15 @@ export const debtorApi = {
    * Sustituye a "traer una página de clientes y sumar en el móvil", que daba
    * una cifra menor que la real en cuanto el negocio pasaba de 100 clientes.
    * Devuelve además el ranking de morosos ya ordenado en la base de datos.
+   *
+   * `top` se recorta a `MAX_SUMMARY_TOP` antes de llamar al backend: este es
+   * el único punto de acceso al endpoint, así que ningún llamador necesita
+   * repetir esa validación.
    */
   getSummary: async (businessId: string, top = 5): Promise<BusinessSummary> => {
+    const validatedTop = Math.min(top, MAX_SUMMARY_TOP);
     const { data } = await http.get('/debtors/summary', {
-      params: { top },
+      params: { top: validatedTop },
       ...businessHeader(businessId),
     });
     return mapBusinessSummary(toItem(data), businessId);

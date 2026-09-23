@@ -7,8 +7,10 @@
  *  - scroll infinito en lugar de botones de página;
  *  - filtros por estado (todos / deben / al día) resueltos en el servidor,
  *    con contadores exactos del negocio y no de la página cargada;
- *  - buscador con debounce que consulta al **servidor**, no a la página
- *    cargada, para que encuentre a un cliente esté en la página que esté;
+ *  - buscador con debounce de 500ms; si el negocio tiene 20 clientes o menos
+ *    (una sola página) filtra **en el dispositivo** sobre lo ya cargado, y
+ *    solo consulta al **servidor** de 21 en adelante, cuando el cliente
+ *    buscado puede estar en una página que el móvil no descargó;
  *  - pull-to-refresh;
  *  - estados de carga, vacío, "sin resultados" y error, cada uno con su texto.
  *
@@ -24,7 +26,7 @@ import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useDebouncedValue } from '@/core/hooks/useDebouncedValue';
 import { usePagedList } from '@/core/hooks/usePagedList';
 import { routes } from '@/core/navigation/routes';
-import { formatMoney, pluralize } from '@/core/utils/format';
+import { formatMoney, normalizeText, pluralize } from '@/core/utils/format';
 import { type Debtor, debtorBalance } from '@/domain/models';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
@@ -53,6 +55,15 @@ type Scope = 'business' | 'all';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Con este total de clientes o menos, `list.items` ya trae a todo el mundo
+ * (caben en una sola página): buscar es filtrar en el dispositivo y no gasta
+ * el servicio. De 21 en adelante hay que seguir preguntándole al servidor,
+ * porque el cliente buscado puede estar en una página que el móvil nunca
+ * descargó.
+ */
+const SEARCH_LOCAL_MAX = PAGE_SIZE;
+
 export const DebtorListScreen = () => {
   const params = useLocalSearchParams<{ businessId?: string }>();
   const { activeBusinessId, businesses, getBusiness, isEmpty: hasNoBusiness } =
@@ -66,7 +77,7 @@ export const DebtorListScreen = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [scope, setScope] = useState<Scope>('business');
-  const debouncedSearch = useDebouncedValue(search, 220);
+  const debouncedSearch = useDebouncedValue(search, 500);
   const toast = useToast();
 
   /**
@@ -87,18 +98,47 @@ export const DebtorListScreen = () => {
   const canSwitchScope = businesses.length > 1 && !isFilteredByParam;
   const effectiveScope: Scope = canSwitchScope ? scope : 'business';
 
-  /**
-   * Búsqueda y filtro de estado los resuelve el **servidor**, y ambos forman
-   * parte de las `deps`: al cambiarlos se vuelve a pedir la página 1 ya
-   * filtrada. Filtrar en local solo miraba la página cargada, así que con
-   * muchos clientes un nombre de la página 8 no aparecía nunca y el chip
-   * "Deben" mostraba un puñado de los que hubiera a mano.
-   */
   const hasDebtFilter = statusFilter === 'all' ? undefined : statusFilter === 'debt';
+
+  /**
+   * Totales exactos del negocio para los contadores de los chips (y, más
+   * abajo, para decidir si buscar es cosa del servidor o del dispositivo). Es
+   * una petición agregada y barata; contarlos sobre `list.items` decía "20
+   * clientes" cuando había 300. No aplica al alcance "todos los negocios",
+   * que no tiene un resumen equivalente en el backend: ahí los chips van sin
+   * número, y la búsqueda sigue yendo siempre al servidor (ver
+   * `canSearchLocally`).
+   */
+  const totals = useAsyncData(
+    () => debtorApi.getSummary(businessId as string, 0),
+    {
+      enabled: effectiveScope === 'business' && Boolean(businessId),
+      deps: [businessId, effectiveScope],
+    },
+  );
+
+  const counts = useMemo(() => {
+    const data = totals.data;
+    if (!data) return { all: undefined, debt: undefined, clear: undefined };
+    return { all: data.totalDebtors, debt: data.debtorsWithDebt, clear: data.debtorsClear };
+  }, [totals.data]);
+
+  /**
+   * Con `SEARCH_LOCAL_MAX` clientes o menos en este filtro, `list.items` ya
+   * los trae a todos: se busca filtrando en el dispositivo y no se le pide
+   * nada al servidor mientras se teclea. Con más, la búsqueda sigue yendo al
+   * servidor como antes, porque el cliente buscado puede estar en una página
+   * que el móvil no descargó. El conteo exacto solo existe para "este
+   * negocio" (`totals`); "todos mis negocios" no tiene un total barato y por
+   * eso siempre busca en el servidor.
+   */
+  const knownTotal = effectiveScope === 'business' ? counts[statusFilter] : undefined;
+  const canSearchLocally = knownTotal !== undefined && knownTotal <= SEARCH_LOCAL_MAX;
+  const serverSearchTerm = canSearchLocally ? undefined : debouncedSearch;
 
   const list = usePagedList<Debtor>(
     (page, limit) => {
-      const query = { search: debouncedSearch, hasDebt: hasDebtFilter };
+      const query = { search: serverSearchTerm, hasDebt: hasDebtFilter };
       return effectiveScope === 'all'
         ? debtorApi.listAll(page, limit, query)
         : debtorApi.listByBusiness(businessId as string, page, limit, query);
@@ -106,22 +146,7 @@ export const DebtorListScreen = () => {
     {
       pageSize: PAGE_SIZE,
       enabled: effectiveScope === 'all' || Boolean(businessId),
-      deps: [businessId, effectiveScope, debouncedSearch, hasDebtFilter],
-    },
-  );
-
-  /**
-   * Totales exactos del negocio para los contadores de los chips. Es una
-   * petición agregada y barata; contarlos sobre `list.items` decía "20
-   * clientes" cuando había 300. No aplica al alcance "todos los negocios",
-   * que no tiene un resumen equivalente en el backend: ahí los chips van sin
-   * número, que es preferible a enseñar uno falso.
-   */
-  const totals = useAsyncData(
-    () => debtorApi.getSummary(businessId as string, 0),
-    {
-      enabled: effectiveScope === 'business' && Boolean(businessId),
-      deps: [businessId, effectiveScope],
+      deps: [businessId, effectiveScope, serverSearchTerm, hasDebtFilter],
     },
   );
 
@@ -136,14 +161,19 @@ export const DebtorListScreen = () => {
     }, [businessId, effectiveScope]),
   );
 
-  const counts = useMemo(() => {
-    const data = totals.data;
-    if (!data) return { all: undefined, debt: undefined, clear: undefined };
-    return { all: data.totalDebtors, debt: data.debtorsWithDebt, clear: data.debtorsClear };
-  }, [totals.data]);
-
-  // Ya no hay filtrado local: la lista llega filtrada del servidor.
-  const visibleDebtors = list.items;
+  /**
+   * En modo local, `list.items` trae a todo el mundo sin filtrar: se aplica
+   * aquí el mismo criterio del backend (minúsculas, sin tildes) sobre nombre,
+   * documento y teléfono.
+   */
+  const visibleDebtors = useMemo(() => {
+    if (!canSearchLocally) return list.items;
+    const query = normalizeText(debouncedSearch.trim());
+    if (!query) return list.items;
+    return list.items.filter((debtor) =>
+      normalizeText(`${debtor.name} ${debtor.documentNumber} ${debtor.phone}`).includes(query),
+    );
+  }, [canSearchLocally, list.items, debouncedSearch]);
 
   /**
    * Saldo total del negocio, tal como lo calcula el servidor. Sumar

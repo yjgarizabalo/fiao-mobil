@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.yair77.fiao",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["whatsapp"]
       }
     },
     "android": {
@@ -39,7 +40,8 @@
           "backgroundColor": "#0B0F14"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/withWhatsAppQueries.js"
     ],
     "experiments": {
       "typedRoutes": true

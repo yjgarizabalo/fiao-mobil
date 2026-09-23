@@ -48,6 +48,13 @@ export interface SheetProps {
   onClose: () => void;
   title?: string;
   subtitle?: string;
+  /**
+   * Líneas máximas del título antes de truncar con puntos suspensivos.
+   * Por defecto `1`: la mayoría de títulos son cortos y fijos ("Registrar
+   * cliente"). Una hoja que abre para mostrar un texto largo del usuario
+   * completo (p. ej. el nombre de una deuda) puede subir este número.
+   */
+  titleNumberOfLines?: number;
   children: ReactNode;
   /** Barra de acciones fija al fondo de la hoja. */
   footer?: ReactNode;
@@ -67,6 +74,7 @@ export const Sheet = ({
   onClose,
   title,
   subtitle,
+  titleNumberOfLines = 1,
   children,
   footer,
   dismissible = true,
@@ -201,7 +209,7 @@ export const Sheet = ({
               {title ? (
                 <View style={styles.header}>
                   <View style={styles.headerText}>
-                    <Text variant="title3" numberOfLines={1}>
+                    <Text variant="title3" numberOfLines={titleNumberOfLines}>
                       {title}
                     </Text>
                     {subtitle ? (
