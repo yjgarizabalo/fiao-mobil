@@ -11,10 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yair77.fiao",
-      "splash": {
-        "image": "./assets/images/splash-icon.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#ffffff"
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["whatsapp"]
       }
     },
     "android": {
@@ -35,13 +34,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/icon-blanco.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0B0F14"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/withWhatsAppQueries.js"
     ],
     "experiments": {
       "typedRoutes": true

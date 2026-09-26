@@ -9,10 +9,15 @@
  *
  * Aquí los insets salen de `react-native-safe-area-context`, que los lee del
  * sistema en las dos plataformas.
+ *
+ * `keyboardAware` usa el `KeyboardAvoidingView` de `react-native-keyboard-controller`,
+ * no el de React Native: con `edgeToEdgeEnabled` en Android (obligatorio desde
+ * Android 15) el nativo reporta mal la altura del teclado y los inputs quedaban
+ * tapados de forma intermitente. `behavior="padding"` funciona igual en las dos
+ * plataformas con esta librería, así que ya no hace falta ramificar por `Platform.OS`.
  */
 import type { ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   type RefreshControlProps,
   ScrollView,
@@ -22,6 +27,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/theme';
@@ -108,12 +114,7 @@ export const Screen = ({
   );
 
   const body = keyboardAware ? (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      // `padding` en iOS y `height` en Android es la combinación que funciona
-      // en las dos plataformas con el teclado nativo.
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       {content}
     </KeyboardAvoidingView>
   ) : (

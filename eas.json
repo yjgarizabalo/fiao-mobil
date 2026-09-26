@@ -24,7 +24,19 @@
       },
       "env": {
         "EXPO_PUBLIC_ENVIRONMENT": "dev",
-        "EXPO_PUBLIC_API_BASE_URL": "https://cheekier-roxann-cleistogamously.ngrok-free.dev/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://fiao-backend.onrender.com/api",
+        "EXPO_PUBLIC_API_AUTH_PREFIX": "/auth",
+        "EXPO_PUBLIC_API_TIMEOUT_MS": "20000"
+      }
+    },
+    "simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_ENVIRONMENT": "dev",
+        "EXPO_PUBLIC_API_BASE_URL": "https://fiao-backend.onrender.com/api",
         "EXPO_PUBLIC_API_AUTH_PREFIX": "/auth",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "20000"
       }
@@ -36,7 +48,7 @@
       },
       "env": {
         "EXPO_PUBLIC_ENVIRONMENT": "prd",
-        "EXPO_PUBLIC_API_BASE_URL": "https://REEMPLAZAR-CON-TU-API-PUBLICA/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://fiao-backend.onrender.com/api",
         "EXPO_PUBLIC_API_AUTH_PREFIX": "/auth",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "20000"
       }

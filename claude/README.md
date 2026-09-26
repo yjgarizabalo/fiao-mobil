@@ -36,6 +36,9 @@ Una entrada por sesión de trabajo relevante, con fecha: qué se encontró, qué
 qué se decidió y —sobre todo— **qué se verificó y qué no**.
 
 - [**2026-09-17-configuracion-eas-build.md**](bitacora/2026-09-17-configuracion-eas-build.md)
+- [**2026-09-20-teclado-tapa-inputs.md**](bitacora/2026-09-20-teclado-tapa-inputs.md) — el
+  teclado tapaba los inputs en Android (registro, login, crear cliente, hojas de fiar/pago);
+  se adoptó `react-native-keyboard-controller` en vez del `KeyboardAvoidingView` nativo.
 
 ---
 

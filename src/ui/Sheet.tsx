@@ -11,12 +11,16 @@
  *  - la animación de salida se completa antes de desmontar, para que no
  *    "desaparezca de golpe";
  *  - `KeyboardAvoidingView` interno porque casi todas las hojas tienen inputs.
+ *    Es el de `react-native-keyboard-controller`, no el de React Native: el
+ *    nativo se dejaba **sin comportamiento en Android** (`behavior: undefined`)
+ *    porque dentro de un `Modal` con `statusBarTranslucent` no calculaba bien
+ *    la altura del teclado, así que los formularios de las hojas (fiar,
+ *    registrar pago) nunca lo evitaban. `behavior="padding"` con esta librería
+ *    sí funciona igual en las dos plataformas, incluso dentro del `Modal`.
  */
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +28,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -43,6 +48,13 @@ export interface SheetProps {
   onClose: () => void;
   title?: string;
   subtitle?: string;
+  /**
+   * Líneas máximas del título antes de truncar con puntos suspensivos.
+   * Por defecto `1`: la mayoría de títulos son cortos y fijos ("Registrar
+   * cliente"). Una hoja que abre para mostrar un texto largo del usuario
+   * completo (p. ej. el nombre de una deuda) puede subir este número.
+   */
+  titleNumberOfLines?: number;
   children: ReactNode;
   /** Barra de acciones fija al fondo de la hoja. */
   footer?: ReactNode;
@@ -62,6 +74,7 @@ export const Sheet = ({
   onClose,
   title,
   subtitle,
+  titleNumberOfLines = 1,
   children,
   footer,
   dismissible = true,
@@ -177,7 +190,7 @@ export const Sheet = ({
 
         <KeyboardAvoidingView
           style={styles.keyboardHost}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           pointerEvents="box-none"
         >
           <GestureDetector gesture={panGesture}>
@@ -196,7 +209,7 @@ export const Sheet = ({
               {title ? (
                 <View style={styles.header}>
                   <View style={styles.headerText}>
-                    <Text variant="title3" numberOfLines={1}>
+                    <Text variant="title3" numberOfLines={titleNumberOfLines}>
                       {title}
                     </Text>
                     {subtitle ? (
