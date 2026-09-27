@@ -17,11 +17,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import { type AppError, toAppError } from '@/core/errors/AppError';
 import { createLogger } from '@/core/logger';
+import { readCache, writeCache } from '@/core/storage/cache';
 import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
 import type { Business, BusinessDraft } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
@@ -47,7 +49,8 @@ interface BusinessContextValue {
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 
 export const BusinessProvider = ({ children }: { children: ReactNode }) => {
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, user } = useSession();
+  const userId = user?.id ?? null;
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
@@ -55,45 +58,79 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<AppError | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  /**
+   * Espejo síncrono de `businesses`: en el `catch` de `load` hay que saber si ya
+   * hay negocios (de caché o de una carga previa) sin esperar a un re-render.
+   */
+  const businessesRef = useRef<Business[]>([]);
+  const applyBusinesses = useCallback((items: Business[]) => {
+    businessesRef.current = items;
+    setBusinesses(items);
+  }, []);
+
+  /**
+   * Restaura el negocio guardado; si ya no existe (lo borraron), cae al primero
+   * disponible. Se ejecuta tanto al hidratar de caché como tras la red.
+   */
+  const resolveActiveBusiness = useCallback(async (items: Business[]) => {
+    const storedId = await getItem(StorageKeys.activeBusinessId);
+    const preferred = items.find((business) => business.id === storedId) ?? items[0] ?? null;
+    setActiveBusinessId(preferred?.id ?? null);
+    if (preferred && preferred.id !== storedId) {
+      await setItem(StorageKeys.activeBusinessId, preferred.id);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
+    const cacheKey = userId ? `businesses:${userId}` : undefined;
+
+    // Rehidratación: pinta los negocios guardados para que la app NO muestre
+    // "crea tu primer negocio" mientras el backend gratuito despierta. Sin esto,
+    // un arranque en frío que vence dejaba `businesses=[]` y disparaba esa
+    // pantalla por error.
+    if (cacheKey && businessesRef.current.length === 0) {
+      const hit = await readCache<Business[]>(cacheKey);
+      if (hit && hit.data.length > 0) {
+        applyBusinesses(hit.data);
+        await resolveActiveBusiness(hit.data);
+        setHasLoaded(true);
+      }
+    }
+
     try {
       const items = await businessApi.listAll();
-      setBusinesses(items);
-
-      // Se restaura el negocio guardado; si ya no existe (lo borraron), se
-      // cae al primero disponible.
-      const storedId = await getItem(StorageKeys.activeBusinessId);
-      const preferred =
-        items.find((business) => business.id === storedId) ?? items[0] ?? null;
-
-      setActiveBusinessId(preferred?.id ?? null);
-      if (preferred && preferred.id !== storedId) {
-        await setItem(StorageKeys.activeBusinessId, preferred.id);
-      }
+      applyBusinesses(items);
+      await resolveActiveBusiness(items);
+      if (cacheKey) void writeCache(cacheKey, items);
     } catch (caught) {
       const appError = toAppError(caught);
       log.error('No se pudieron cargar los negocios', { code: appError.code });
-      setError(appError);
-      setBusinesses([]);
+      // Si ya hay negocios que mostrar (caché o carga previa), no se borran: el
+      // servidor dormido no debe mandar al usuario a "crea tu primer negocio".
+      if (businessesRef.current.length === 0) {
+        setError(appError);
+        applyBusinesses([]);
+      }
     } finally {
       setIsLoading(false);
       setHasLoaded(true);
     }
-  }, []);
+  }, [applyBusinesses, resolveActiveBusiness, userId]);
 
   // Se cargan al autenticarse y se limpian al salir.
   useEffect(() => {
     if (isAuthenticated) {
       void load();
     } else {
-      setBusinesses([]);
+      applyBusinesses([]);
       setActiveBusinessId(null);
       setHasLoaded(false);
       setError(null);
     }
-  }, [isAuthenticated, load]);
+  }, [isAuthenticated, load, applyBusinesses]);
 
   const selectBusiness = useCallback((businessId: string) => {
     setActiveBusinessId(businessId);
@@ -103,13 +140,17 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
   const createBusiness = useCallback(
     async (draft: BusinessDraft) => {
       const created = await businessApi.create(draft);
-      setBusinesses((previous) => [...previous, created]);
+      const next = [...businessesRef.current, created];
+      applyBusinesses(next);
+      // Se refresca la caché para que el negocio recién creado sobreviva a un
+      // reinicio aunque el backend se duerma antes de la siguiente carga.
+      if (userId) void writeCache(`businesses:${userId}`, next);
       // El primer negocio pasa a ser el activo automáticamente: es lo que el
       // usuario espera justo después de crearlo.
       if (!activeBusinessId) selectBusiness(created.id);
       return created;
     },
-    [activeBusinessId, selectBusiness],
+    [activeBusinessId, applyBusinesses, selectBusiness, userId],
   );
 
   const getBusiness = useCallback(

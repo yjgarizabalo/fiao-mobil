@@ -31,6 +31,7 @@ export { SearchBar } from './SearchBar';
 export { SegmentedControl } from './SegmentedControl';
 export { Sheet } from './Sheet';
 export { CardSkeleton, ListSkeleton, RowSkeleton, Skeleton } from './Skeleton';
+export { StaleNotice } from './StaleNotice';
 export { EmptyState, ErrorState } from './StateViews';
 export { TabBar } from './TabBar';
 export { Text } from './Text';

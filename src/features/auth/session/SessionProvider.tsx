@@ -32,6 +32,7 @@ import {
   setTokens,
 } from '@/core/http/tokenStore';
 import { createLogger } from '@/core/logger';
+import { clearCache } from '@/core/storage/cache';
 import { StorageKeys, getJson, removeItems, setJson } from '@/core/storage/storage';
 import type { User } from '@/domain/models';
 import {
@@ -102,6 +103,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setStatus('unauthenticated');
         void removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
+        // La caché guarda datos de negocio: no debe sobrevivir a un cierre de
+        // sesión y quedar visible para la siguiente cuenta del dispositivo.
+        void clearCache();
       }),
     [],
   );
@@ -176,10 +180,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 };
 
-/** Borra tokens y datos locales de la sesión. */
+/** Borra tokens, datos locales de la sesión y la caché de datos de negocio. */
 const clearSession = async () => {
   await clearTokens();
   await removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
+  // La caché offline pertenece al usuario que sale: se limpia para que la
+  // siguiente cuenta que entre en el dispositivo no vea datos ajenos.
+  await clearCache();
 };
 
 export const useSession = (): SessionContextValue => {

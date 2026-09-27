@@ -58,6 +58,7 @@ import {
   PressableScale,
   Screen,
   SectionHeader,
+  StaleNotice,
   StatTile,
   Text,
   useDialog,
@@ -102,7 +103,15 @@ export const DebtorDetailScreen = () => {
       ]);
       return { debtor, debts };
     },
-    { enabled: debtorId.length > 0 && businessId.length > 0, deps: [debtorId, businessId] },
+    {
+      enabled: debtorId.length > 0 && businessId.length > 0,
+      deps: [debtorId, businessId],
+      // Al reabrir el detalle se ve el último saldo y extracto conocidos al
+      // instante; si el backend gratuito está dormido, se conservan en vez de
+      // mostrar un error. La caché se limpia por completo al cerrar sesión.
+      cacheKey:
+        debtorId && businessId ? `debtor-detail:${businessId}:${debtorId}` : undefined,
+    },
   );
 
   const debtor = detail.data?.debtor ?? null;
@@ -416,6 +425,8 @@ export const DebtorDetailScreen = () => {
 
       {/* ── Extracto ────────────────────────────────────────────────────── */}
       <View style={styles.body}>
+        <StaleNotice visible={detail.isStale} />
+
         <SectionHeader
           title="Movimientos"
           meta={

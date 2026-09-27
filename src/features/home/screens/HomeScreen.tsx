@@ -37,6 +37,7 @@ import {
   Screen,
   SectionHeader,
   Skeleton,
+  StaleNotice,
   Text,
 } from '@/ui';
 import { theme } from '@/theme';
@@ -61,7 +62,14 @@ export const HomeScreen = () => {
       if (!activeBusinessId) return null;
       return debtorApi.getSummary(activeBusinessId, TOP_DEBTORS);
     },
-    { enabled: Boolean(activeBusinessId), deps: [activeBusinessId] },
+    {
+      enabled: Boolean(activeBusinessId),
+      deps: [activeBusinessId],
+      // Se cachea por usuario + negocio: al reabrir la app se ve el último total
+      // por cobrar al instante aunque el backend gratuito esté despertando.
+      cacheKey:
+        user?.id && activeBusinessId ? `home-summary:${user.id}:${activeBusinessId}` : undefined,
+    },
   );
 
   // Al volver de registrar un pago o una deuda, el resumen debe estar al día.
@@ -178,6 +186,8 @@ export const HomeScreen = () => {
 
       {/* ── Accesos rápidos ─────────────────────────────────────────────── */}
       <View style={styles.body}>
+        <StaleNotice visible={debtors.isStale} />
+
         <View style={styles.quickActions}>
           <QuickAction
             icon="person-add-outline"

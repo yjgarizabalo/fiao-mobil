@@ -28,6 +28,7 @@ import { usePagedList } from '@/core/hooks/usePagedList';
 import { routes } from '@/core/navigation/routes';
 import { formatMoney, normalizeText, pluralize } from '@/core/utils/format';
 import { type Debtor, debtorBalance } from '@/domain/models';
+import { useSession } from '@/features/auth/session/SessionProvider';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { DebtorRow } from '@/features/debtors/components/DebtorRow';
@@ -44,6 +45,7 @@ import {
   Screen,
   SearchBar,
   SegmentedControl,
+  StaleNotice,
   Text,
   useToast,
 } from '@/ui';
@@ -66,6 +68,7 @@ const SEARCH_LOCAL_MAX = PAGE_SIZE;
 
 export const DebtorListScreen = () => {
   const params = useLocalSearchParams<{ businessId?: string }>();
+  const { user } = useSession();
   const { activeBusinessId, businesses, getBusiness, isEmpty: hasNoBusiness } =
     useBusinesses();
 
@@ -114,6 +117,8 @@ export const DebtorListScreen = () => {
     {
       enabled: effectiveScope === 'business' && Boolean(businessId),
       deps: [businessId, effectiveScope],
+      cacheKey:
+        user?.id && businessId ? `debtor-summary:${user.id}:${businessId}` : undefined,
     },
   );
 
@@ -136,6 +141,22 @@ export const DebtorListScreen = () => {
   const canSearchLocally = knownTotal !== undefined && knownTotal <= SEARCH_LOCAL_MAX;
   const serverSearchTerm = canSearchLocally ? undefined : debouncedSearch;
 
+  /**
+   * Solo se cachea la vista por defecto (sin búsqueda ni filtro): es la que se
+   * ve al abrir la pestaña y la que debe aparecer al instante aunque el backend
+   * esté dormido. Los resultados de una búsqueda o de un filtro concreto cambian
+   * demasiado como para persistirlos, y además siempre consultan al servidor.
+   */
+  const isDefaultView = debouncedSearch.trim().length === 0 && statusFilter === 'all';
+  const listCacheKey =
+    isDefaultView && user?.id
+      ? effectiveScope === 'all'
+        ? `debtors:${user.id}:all`
+        : businessId
+          ? `debtors:${user.id}:${businessId}`
+          : undefined
+      : undefined;
+
   const list = usePagedList<Debtor>(
     (page, limit) => {
       const query = { search: serverSearchTerm, hasDebt: hasDebtFilter };
@@ -147,6 +168,7 @@ export const DebtorListScreen = () => {
       pageSize: PAGE_SIZE,
       enabled: effectiveScope === 'all' || Boolean(businessId),
       deps: [businessId, effectiveScope, serverSearchTerm, hasDebtFilter],
+      cacheKey: listCacheKey,
     },
   );
 
@@ -364,6 +386,8 @@ export const DebtorListScreen = () => {
           </View>
         ) : null}
       </View>
+
+      <StaleNotice visible={list.isStale || totals.isStale} />
 
       {/*
         El skeleton solo aparece cuando no hay nada que enseñar. Como la

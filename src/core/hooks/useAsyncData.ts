@@ -8,10 +8,20 @@
  *
  * También cancela: si la pantalla se desmonta o llega una carga más reciente,
  * el resultado viejo se descarta en vez de sobrescribir el estado.
+ *
+ * Caché offline (opcional, con `cacheKey`): la última respuesta buena se guarda
+ * en disco y se rehidrata al montar (stale-while-revalidate). Sirve para el
+ * backend gratuito que se duerme: al reabrir la app se ve al instante lo último
+ * cargado y, si la red falla mientras el servicio despierta, se conserva lo
+ * guardado en vez de mostrar un error. Ver `src/core/storage/cache.ts`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type AppError, toAppError } from '@/core/errors/AppError';
+import { createLogger } from '@/core/logger';
+import { readCache, writeCache } from '@/core/storage/cache';
+
+const log = createLogger('async-data');
 
 export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -23,6 +33,11 @@ export interface UseAsyncDataResult<T> {
   isLoading: boolean;
   /** Recarga con datos ya en pantalla (pull-to-refresh). */
   isRefreshing: boolean;
+  /**
+   * Los datos que se ven vienen de la caché y aún no los confirmó la red en esta
+   * sesión (el servidor puede estar despertando). Sirve para un aviso sutil.
+   */
+  isStale: boolean;
   /** Vuelve a ejecutar la carga mostrando el skeleton. */
   reload: () => Promise<void>;
   /** Vuelve a ejecutar la carga manteniendo los datos visibles. */
@@ -36,19 +51,36 @@ export interface UseAsyncDataOptions {
   enabled?: boolean;
   /** Dependencias que, al cambiar, disparan una recarga. */
   deps?: readonly unknown[];
+  /**
+   * Llave de caché. Si se define, la última respuesta buena se persiste y se
+   * rehidrata al montar. Debe ser única por contexto (usuario + negocio + …)
+   * para no mezclar los datos de una cuenta con los de otra.
+   */
+  cacheKey?: string;
 }
 
 export const useAsyncData = <T>(
   fetcher: () => Promise<T>,
-  { enabled = true, deps = [] }: UseAsyncDataOptions = {},
+  { enabled = true, deps = [], cacheKey }: UseAsyncDataOptions = {},
 ): UseAsyncDataResult<T> => {
   const [data, setDataState] = useState<T | null>(null);
   const [status, setStatus] = useState<AsyncStatus>(enabled ? 'loading' : 'idle');
   const [error, setError] = useState<AppError | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isStale, setIsStale] = useState(false);
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+
+  const cacheKeyRef = useRef(cacheKey);
+  cacheKeyRef.current = cacheKey;
+
+  /**
+   * Espejo síncrono de `data`. En el `catch` de una carga async necesitamos
+   * saber si ya hay algo en pantalla (de caché o de una carga previa) sin
+   * esperar a que React vuelva a renderizar; por eso se mantiene aparte.
+   */
+  const dataRef = useRef<T | null>(null);
 
   const mountedRef = useRef(true);
   /** Cada ejecución recibe un id; solo la más reciente puede escribir estado. */
@@ -61,32 +93,80 @@ export const useAsyncData = <T>(
     };
   }, []);
 
-  const run = useCallback(async (mode: 'load' | 'refresh') => {
-    const runId = runIdRef.current + 1;
-    runIdRef.current = runId;
-
-    if (mode === 'refresh') setIsRefreshing(true);
-    else setStatus('loading');
-    setError(null);
-
-    try {
-      const result = await fetcherRef.current();
-      if (!mountedRef.current || runIdRef.current !== runId) return;
-      setDataState(result);
-      setStatus('success');
-    } catch (caught) {
-      if (!mountedRef.current || runIdRef.current !== runId) return;
-      const appError = toAppError(caught);
-      // Una cancelación no es un error que deba pintarse en pantalla.
-      if (appError.code === 'CANCELLED') return;
-      setError(appError);
-      setStatus('error');
-    } finally {
-      if (mountedRef.current && runIdRef.current === runId && mode === 'refresh') {
-        setIsRefreshing(false);
-      }
-    }
+  /** Escribe `data` y su espejo a la vez. */
+  const commitData = useCallback((value: T | null) => {
+    dataRef.current = value;
+    setDataState(value);
   }, []);
+
+  const run = useCallback(
+    async (mode: 'load' | 'refresh') => {
+      const runId = runIdRef.current + 1;
+      runIdRef.current = runId;
+      const key = cacheKeyRef.current;
+
+      if (mode === 'refresh') {
+        setIsRefreshing(true);
+      } else {
+        // Carga "fresca": se parte de cero para no mezclar el contexto anterior
+        // (p. ej. otro negocio) con lo que va a hidratar la nueva llave.
+        if (key) commitData(null);
+        setStatus('loading');
+        setIsStale(false);
+      }
+      setError(null);
+
+      // Rehidratación desde caché, en paralelo con la red: si llega antes y la
+      // red todavía no puso datos, se pinta lo guardado y se marca como stale.
+      let networkSettled = false;
+      if (key && mode === 'load') {
+        void readCache<T>(key).then((hit) => {
+          if (!hit || networkSettled) return;
+          if (!mountedRef.current || runIdRef.current !== runId) return;
+          if (dataRef.current !== null) return;
+          commitData(hit.data);
+          setStatus('success');
+          setIsStale(true);
+        });
+      }
+
+      try {
+        const result = await fetcherRef.current();
+        networkSettled = true;
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+        commitData(result);
+        setStatus('success');
+        setIsStale(false);
+        setError(null);
+        if (key) void writeCache(key, result);
+      } catch (caught) {
+        networkSettled = true;
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+        const appError = toAppError(caught);
+        // Una cancelación no es un error que deba pintarse en pantalla.
+        if (appError.code === 'CANCELLED') return;
+
+        // Si ya hay algo que mostrar (caché o carga previa), no se rompe la
+        // pantalla: se conserva y se marca como no confirmado. Así el servidor
+        // dormido no deja al usuario sin datos.
+        if (dataRef.current !== null) {
+          setStatus('success');
+          setIsStale(true);
+          log.warn('Revalidación fallida; se conservan los datos en caché', {
+            code: appError.code,
+          });
+        } else {
+          setError(appError);
+          setStatus('error');
+        }
+      } finally {
+        if (mountedRef.current && runIdRef.current === runId && mode === 'refresh') {
+          setIsRefreshing(false);
+        }
+      }
+    },
+    [commitData],
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -95,15 +175,21 @@ export const useAsyncData = <T>(
     }
     void run('load');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, run, ...deps]);
+  }, [enabled, run, cacheKey, ...deps]);
 
-  const setData = useCallback((updater: T | ((previous: T | null) => T | null)) => {
-    setDataState((previous) =>
-      typeof updater === 'function'
-        ? (updater as (p: T | null) => T | null)(previous)
-        : updater,
-    );
-  }, []);
+  const setData = useCallback(
+    (updater: T | ((previous: T | null) => T | null)) => {
+      setDataState((previous) => {
+        const next =
+          typeof updater === 'function'
+            ? (updater as (p: T | null) => T | null)(previous)
+            : updater;
+        dataRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
   return {
     data,
@@ -111,6 +197,7 @@ export const useAsyncData = <T>(
     error,
     isLoading: status === 'loading',
     isRefreshing,
+    isStale,
     reload: useCallback(() => run('load'), [run]),
     refresh: useCallback(() => run('refresh'), [run]),
     setData,
