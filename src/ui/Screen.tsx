@@ -16,7 +16,7 @@
  * tapados de forma intermitente. `behavior="padding"` funciona igual en las dos
  * plataformas con esta librería, así que ya no hace falta ramificar por `Platform.OS`.
  */
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import {
   Platform,
   type RefreshControlProps,
@@ -26,7 +26,8 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect } from 'expo-router';
+import { setStatusBarStyle } from 'expo-status-bar';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,6 +71,23 @@ export const Screen = ({
   contentStyle,
 }: ScreenProps) => {
   const insets = useSafeAreaInsets();
+
+  const barStyle = statusBar ?? (background === 'inverse' ? 'light' : 'dark');
+
+  /**
+   * El estilo se fija al recibir el foco, nunca con el `<StatusBar>`
+   * declarativo. React Native guarda una **pila** de configuraciones: cada
+   * `<StatusBar>` montado empuja una entrada y gana la última empujada, no la
+   * de la pantalla visible. Como las pestañas nunca se desmontan, al volver al
+   * inicio seguía ganando la entrada de la pestaña anterior y el héroe oscuro
+   * se quedaba con los iconos oscuros. Con el foco como disparador hay un solo
+   * dueño en cada momento: la pantalla que el usuario está viendo.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle(barStyle);
+    }, [barStyle]),
+  );
 
   const backgroundColor =
     background === 'inverse'
@@ -123,7 +141,6 @@ export const Screen = ({
 
   return (
     <View style={[styles.flex, { backgroundColor }, style]}>
-      <StatusBar style={statusBar ?? (background === 'inverse' ? 'light' : 'dark')} />
       {body}
       {footer ? (
         <View
