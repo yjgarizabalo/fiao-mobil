@@ -18,7 +18,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Redirect } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { setStatusBarStyle } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -63,6 +63,11 @@ const BrandSplash = () => {
   const taglineOpacity = useSharedValue(0);
   const spinnerOpacity = useSharedValue(0);
 
+  // Vive sobre el degradado oscuro: iconos claros desde el primer frame.
+  useEffect(() => {
+    setStatusBarStyle('light');
+  }, []);
+
   useEffect(() => {
     logoOpacity.value = withTiming(1, { duration: theme.duration.slow });
     logoScale.value = withSpring(1, theme.spring.soft);
@@ -96,8 +101,6 @@ const BrandSplash = () => {
       style={styles.container}
       onLayout={revealBehindNativeSplash}
     >
-      <StatusBar style="light" />
-
       <View style={styles.brand}>
         <AnimatedImage
           source={require('../../../../assets/images/icon-blanco.png')}

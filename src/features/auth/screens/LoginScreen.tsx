@@ -15,11 +15,12 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import { setStatusBarStyle } from 'expo-status-bar';
 
 import { toAppError } from '@/core/errors/AppError';
 import { routes } from '@/core/navigation/routes';
@@ -73,10 +74,17 @@ export const LoginScreen = () => {
     },
   });
 
+  // Esta pantalla no usa `Screen` (arma su propio héroe a pantalla completa),
+  // así que fija el estilo por su cuenta con el mismo mecanismo: al recibir el
+  // foco, nunca con el `<StatusBar>` declarativo.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('light');
+    }, []),
+  );
+
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-
       <LinearGradient colors={theme.gradient.hero} style={styles.hero}>
         <View style={[styles.heroContent, { paddingTop: insets.top + theme.spacing['3xl'] }]}>
           <Image

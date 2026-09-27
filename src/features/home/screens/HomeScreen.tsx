@@ -11,6 +11,7 @@
  *  4. los clientes que más deben, listos para tocar y cobrar.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo } from 'react';
@@ -130,15 +131,14 @@ export const HomeScreen = () => {
       {/* ── Héroe con el total por cobrar ───────────────────────────────── */}
       <LinearGradient
         colors={theme.gradient.hero}
-        style={[styles.hero, { paddingTop: insets.top + theme.spacing.lg }]}
+        style={[styles.hero, { paddingTop: insets.top + theme.spacing.md }]}
       >
         <View style={styles.heroHeader}>
-          <View style={styles.heroGreeting}>
-            <Text variant="caption" color="textInverseSubtle" uppercase>
-              {greeting}
-            </Text>
-            <BusinessSwitcher inverse style={styles.switcher} />
-          </View>
+          <Image
+            source={require('../../../../assets/images/icon-blanco.png')}
+            style={styles.headerLogo}
+            contentFit="contain"
+          />
 
           <PressableScale
             onPress={() => router.push(routes.tabs.profile)}
@@ -149,6 +149,13 @@ export const HomeScreen = () => {
           >
             <Ionicons name="person" size={20} color={theme.color.textInverse} />
           </PressableScale>
+        </View>
+
+        <View style={styles.heroContext}>
+          <Text variant="caption" color="textInverseSubtle">
+            {greeting}
+          </Text>
+          <BusinessSwitcher inverse />
         </View>
 
         <View style={styles.heroBalance}>
@@ -338,16 +345,16 @@ const styles = StyleSheet.create({
   },
   heroHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: theme.spacing.md,
   },
-  heroGreeting: {
-    flex: 1,
-    gap: theme.spacing.sm,
+  headerLogo: {
+    width: 76,
+    height: 30,
   },
-  switcher: {
-    marginTop: theme.spacing.xxs,
+  heroContext: {
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.md,
   },
   avatarButton: {
     width: 40,
@@ -360,7 +367,7 @@ const styles = StyleSheet.create({
   heroBalance: {
     alignItems: 'center',
     gap: theme.spacing.xxs,
-    paddingTop: theme.spacing['2xl'],
+    paddingTop: theme.spacing.xl,
     paddingBottom: theme.spacing.xl,
   },
   heroSkeleton: {
