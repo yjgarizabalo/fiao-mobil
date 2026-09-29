@@ -85,6 +85,13 @@ export const removeCache = async (key: string): Promise<void> => {
 };
 
 /**
+ * Dice si una entrada guardada en `savedAt` ya superó el TTL.
+ * Úsalo en los hooks antes de decidir si hace falta ir a la red.
+ */
+export const isCacheStale = (savedAt: number, ttlMs: number): boolean =>
+  Date.now() - savedAt > ttlMs;
+
+/**
  * Borra TODA la caché. Se llama al cerrar sesión: los datos de un tendero no
  * deben quedar disponibles para la siguiente cuenta que entre en el dispositivo.
  */

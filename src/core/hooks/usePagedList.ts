@@ -18,9 +18,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type AppError, toAppError } from '@/core/errors/AppError';
 import { DEFAULT_PAGE_SIZE, type Page, type PaginationMeta } from '@/core/http/payload';
 import { createLogger } from '@/core/logger';
-import { readCache, writeCache } from '@/core/storage/cache';
+import { isCacheStale, readCache, writeCache } from '@/core/storage/cache';
 
 const log = createLogger('paged-list');
+
+/** Caché más fresca que este tiempo se usa sin ir a la red. */
+const CACHE_TTL_DEFAULT_MS = 10 * 60 * 1000;
 
 export interface UsePagedListResult<T> {
   items: T[];
@@ -57,6 +60,11 @@ export interface UsePagedListOptions {
    * negocio + filtros) para no mezclar los datos de una consulta con otra.
    */
   cacheKey?: string;
+  /**
+   * TTL en ms. Caché más fresca que esto se usa directamente sin ir a la red.
+   * Default: 10 minutos. Pasar `0` para forzar siempre la red.
+   */
+  cacheTtlMs?: number;
 }
 
 /** Lo que se persiste de una lista: la primera página y su metadata. */
@@ -67,7 +75,7 @@ interface CachedPage<T> {
 
 export const usePagedList = <T>(
   fetchPage: (page: number, limit: number) => Promise<Page<T>>,
-  { pageSize = DEFAULT_PAGE_SIZE, enabled = true, deps = [], cacheKey }: UsePagedListOptions = {},
+  { pageSize = DEFAULT_PAGE_SIZE, enabled = true, deps = [], cacheKey, cacheTtlMs }: UsePagedListOptions = {},
 ): UsePagedListResult<T> => {
   const [items, setItemsState] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(enabled);
@@ -84,6 +92,9 @@ export const usePagedList = <T>(
 
   const cacheKeyRef = useRef(cacheKey);
   cacheKeyRef.current = cacheKey;
+
+  const cacheTtlMsRef = useRef(cacheTtlMs);
+  cacheTtlMsRef.current = cacheTtlMs;
 
   /** Espejo síncrono de `items` para decidir en el `catch` si ya hay algo. */
   const itemsRef = useRef<T[]>([]);
@@ -110,6 +121,7 @@ export const usePagedList = <T>(
       const runId = runIdRef.current + 1;
       runIdRef.current = runId;
       const key = cacheKeyRef.current;
+      const ttlMs = cacheTtlMsRef.current ?? CACHE_TTL_DEFAULT_MS;
 
       if (mode === 'refresh') {
         setIsRefreshing(true);
@@ -122,25 +134,29 @@ export const usePagedList = <T>(
       }
       setError(null);
 
-      // Rehidratación desde caché en paralelo con la red.
-      let networkSettled = false;
+      // Con TTL: primero se lee el caché y se decide si la red es necesaria.
+      // Caché fresca (< ttlMs) → se pinta y se sale; no se toca el servidor.
+      // Caché vencida → se pinta mientras se lanza la red en segundo plano.
       if (key && mode === 'load') {
-        void readCache<CachedPage<T>>(key).then((hit) => {
-          if (!hit || networkSettled) return;
-          if (!mountedRef.current || runIdRef.current !== runId) return;
-          if (itemsRef.current.length > 0) return;
-          commitItems(hit.data.items);
-          setPage(hit.data.meta.page);
-          setTotalPages(hit.data.meta.totalPages);
-          setTotal(hit.data.meta.total);
-          setIsLoading(false);
-          setIsStale(true);
-        });
+        const hit = await readCache<CachedPage<T>>(key);
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+
+        if (hit) {
+          const expired = isCacheStale(hit.savedAt, ttlMs);
+          if (itemsRef.current.length === 0) {
+            commitItems(hit.data.items);
+            setPage(hit.data.meta.page);
+            setTotalPages(hit.data.meta.totalPages);
+            setTotal(hit.data.meta.total);
+            setIsLoading(false);
+            setIsStale(expired);
+          }
+          if (!expired) return;
+        }
       }
 
       try {
         const result = await fetchRef.current(1, pageSize);
-        networkSettled = true;
         if (!mountedRef.current || runIdRef.current !== runId) return;
         commitItems(result.items);
         setPage(result.meta.page);
@@ -149,7 +165,6 @@ export const usePagedList = <T>(
         setIsStale(false);
         if (key) void writeCache<CachedPage<T>>(key, { items: result.items, meta: result.meta });
       } catch (caught) {
-        networkSettled = true;
         if (!mountedRef.current || runIdRef.current !== runId) return;
         const appError = toAppError(caught);
         if (appError.code === 'CANCELLED') return;

@@ -19,9 +19,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type AppError, toAppError } from '@/core/errors/AppError';
 import { createLogger } from '@/core/logger';
-import { readCache, writeCache } from '@/core/storage/cache';
+import { isCacheStale, readCache, writeCache } from '@/core/storage/cache';
 
 const log = createLogger('async-data');
+
+/** Caché más fresca que este tiempo se usa sin ir a la red. */
+const CACHE_TTL_DEFAULT_MS = 10 * 60 * 1000;
 
 export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -57,11 +60,17 @@ export interface UseAsyncDataOptions {
    * para no mezclar los datos de una cuenta con los de otra.
    */
   cacheKey?: string;
+  /**
+   * TTL en ms. Caché más fresca que esto se usa directamente sin ir a la red.
+   * Default: 10 minutos. Pasar `0` para forzar siempre la red (comportamiento
+   * del v1: stale-while-revalidate sin límite de tiempo).
+   */
+  cacheTtlMs?: number;
 }
 
 export const useAsyncData = <T>(
   fetcher: () => Promise<T>,
-  { enabled = true, deps = [], cacheKey }: UseAsyncDataOptions = {},
+  { enabled = true, deps = [], cacheKey, cacheTtlMs }: UseAsyncDataOptions = {},
 ): UseAsyncDataResult<T> => {
   const [data, setDataState] = useState<T | null>(null);
   const [status, setStatus] = useState<AsyncStatus>(enabled ? 'loading' : 'idle');
@@ -74,6 +83,9 @@ export const useAsyncData = <T>(
 
   const cacheKeyRef = useRef(cacheKey);
   cacheKeyRef.current = cacheKey;
+
+  const cacheTtlMsRef = useRef(cacheTtlMs);
+  cacheTtlMsRef.current = cacheTtlMs;
 
   /**
    * Espejo síncrono de `data`. En el `catch` de una carga async necesitamos
@@ -104,6 +116,7 @@ export const useAsyncData = <T>(
       const runId = runIdRef.current + 1;
       runIdRef.current = runId;
       const key = cacheKeyRef.current;
+      const ttlMs = cacheTtlMsRef.current ?? CACHE_TTL_DEFAULT_MS;
 
       if (mode === 'refresh') {
         setIsRefreshing(true);
@@ -116,23 +129,26 @@ export const useAsyncData = <T>(
       }
       setError(null);
 
-      // Rehidratación desde caché, en paralelo con la red: si llega antes y la
-      // red todavía no puso datos, se pinta lo guardado y se marca como stale.
-      let networkSettled = false;
+      // Con TTL: primero se lee el caché y se decide si la red es necesaria.
+      // Caché fresca (< ttlMs) → se pinta y se sale; no se toca el servidor.
+      // Caché vencida → se pinta mientras se lanza la red en segundo plano.
       if (key && mode === 'load') {
-        void readCache<T>(key).then((hit) => {
-          if (!hit || networkSettled) return;
-          if (!mountedRef.current || runIdRef.current !== runId) return;
-          if (dataRef.current !== null) return;
-          commitData(hit.data);
-          setStatus('success');
-          setIsStale(true);
-        });
+        const hit = await readCache<T>(key);
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+
+        if (hit) {
+          const expired = isCacheStale(hit.savedAt, ttlMs);
+          if (dataRef.current === null) {
+            commitData(hit.data);
+            setStatus('success');
+            setIsStale(expired);
+          }
+          if (!expired) return;
+        }
       }
 
       try {
         const result = await fetcherRef.current();
-        networkSettled = true;
         if (!mountedRef.current || runIdRef.current !== runId) return;
         commitData(result);
         setStatus('success');
@@ -140,7 +156,6 @@ export const useAsyncData = <T>(
         setError(null);
         if (key) void writeCache(key, result);
       } catch (caught) {
-        networkSettled = true;
         if (!mountedRef.current || runIdRef.current !== runId) return;
         const appError = toAppError(caught);
         // Una cancelación no es un error que deba pintarse en pantalla.
