@@ -170,10 +170,39 @@ export const useAsyncData = <T>(
           log.warn('Revalidación fallida; se conservan los datos en caché', {
             code: appError.code,
           });
-        } else {
-          setError(appError);
-          setStatus('error');
+          return;
         }
+
+        /**
+         * Sin datos en memoria, el disco es el último recurso antes de romper
+         * la pantalla.
+         *
+         * Hace falta por una carrera real: casi todas las pantallas disparan
+         * `refresh()` al recibir el foco, y el foco llega en el **mismo**
+         * montaje en que corre la carga inicial. Esa carga está esperando a
+         * `readCache` cuando el refresh incrementa `runId`, así que al volver
+         * del disco se descarta sin pintar nada. Si entonces la red falla,
+         * `dataRef` sigue vacío y el usuario veía "Problema del servidor"
+         * teniendo datos perfectamente buenos guardados.
+         *
+         * Se reproducía al cambiar de modo y volver: cada cambio remonta la
+         * pantalla y repite la carrera.
+         */
+        const fallback = key ? await readCache<T>(key) : null;
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+
+        if (fallback) {
+          commitData(fallback.data);
+          setStatus('success');
+          setIsStale(true);
+          log.warn('Carga fallida; se muestran los datos guardados en disco', {
+            code: appError.code,
+          });
+          return;
+        }
+
+        setError(appError);
+        setStatus('error');
       } finally {
         if (mountedRef.current && runIdRef.current === runId && mode === 'refresh') {
           setIsRefreshing(false);

@@ -37,6 +37,29 @@ const log = createLogger('client-api');
 
 type Raw = Record<string, unknown>;
 
+/**
+ * Petición de vínculos en vuelo, compartida (patrón single-flight, el mismo
+ * que usa la renovación de sesión en `core/http/client.ts`).
+ *
+ * Al montar el inicio del modo cliente salían **dos** peticiones simultáneas
+ * a `/users/me/dashboard`: la del `useAsyncData` de la pantalla y la que el
+ * efecto de foco dispara para refrescar los vínculos del interruptor. Cambiar
+ * de modo remonta la pantalla, así que ir y volver multiplicaba las llamadas
+ * sobre el endpoint más pesado del backend —hace tres consultas en paralelo—
+ * corriendo en un plan gratuito. Ahora quien llega mientras hay una en curso
+ * se cuelga de ella.
+ */
+let accountsInFlight: Promise<ClientAccount[]> | null = null;
+
+const fetchAccounts = async (): Promise<ClientAccount[]> => {
+  const { data } = await http.get('/users/me/dashboard');
+  const dashboard = (toItem<Raw>(data) ?? {}) as Raw;
+
+  return toList<unknown>(dashboard.clientBusinesses)
+    .map(mapClientAccount)
+    .filter((account) => account.businessId !== '' && account.debtorId !== '');
+};
+
 export const clientApi = {
   /**
    * `GET /users/me/dashboard` — tiendas donde al usuario le fían.
@@ -46,13 +69,11 @@ export const clientApi = {
    * de cliente. Las entradas sin `businessId` se descartan: sin negocio no se
    * puede consultar nada y una tarjeta rota confunde más que no mostrarla.
    */
-  listAccounts: async (): Promise<ClientAccount[]> => {
-    const { data } = await http.get('/users/me/dashboard');
-    const dashboard = (toItem<Raw>(data) ?? {}) as Raw;
-
-    return toList<unknown>(dashboard.clientBusinesses)
-      .map(mapClientAccount)
-      .filter((account) => account.businessId !== '' && account.debtorId !== '');
+  listAccounts: (): Promise<ClientAccount[]> => {
+    accountsInFlight ??= fetchAccounts().finally(() => {
+      accountsInFlight = null;
+    });
+    return accountsInFlight;
   },
 
   /**
