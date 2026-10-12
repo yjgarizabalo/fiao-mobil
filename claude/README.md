@@ -39,6 +39,9 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
 - [**2026-09-20-teclado-tapa-inputs.md**](bitacora/2026-09-20-teclado-tapa-inputs.md) — el
   teclado tapaba los inputs en Android (registro, login, crear cliente, hojas de fiar/pago);
   se adoptó `react-native-keyboard-controller` en vez del `KeyboardAvoidingView` nativo.
+- [**2026-10-12-modo-cliente.md**](bitacora/2026-10-12-modo-cliente.md) — se agregó el modo
+  cliente (ver lo que uno debe en las tiendas donde le fían), construido sobre los endpoints
+  que ya existían. Incluye el repaso del backend y un riesgo de autorización abierto allí.
 
 ---
 

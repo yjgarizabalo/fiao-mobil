@@ -21,6 +21,7 @@ import axios, {
 } from 'axios';
 
 import { env } from '@/core/config/env';
+import { isOffline } from '@/core/connectivity';
 import { AppError } from '@/core/errors/AppError';
 import { toHttpAppError } from './httpError';
 import {
@@ -47,9 +48,27 @@ export const http: AxiosInstance = axios.create({
   headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
 });
 
-/* ── Request: adjunta el token y traza la petición ────────────────────────── */
+/* ── Request: corta si no hay red, adjunta el token y traza la petición ───── */
 
 http.interceptors.request.use((config) => {
+  /**
+   * Sin internet no se intenta siquiera.
+   *
+   * El timeout de este proyecto son 60 s —hay que darle margen al arranque en
+   * frío del backend gratuito—, así que dejar salir la petición significaba
+   * que un formulario se quedaba un minuto girando antes de decir nada. Se
+   * rechaza con el mismo `AppError('NETWORK')` que produciría la red al
+   * fallar, de modo que cada pantalla muestra el mensaje que ya tiene escrito
+   * ("Sin conexión…") sin ningún cambio.
+   *
+   * El interceptor de respuesta lo deja pasar tal cual: `toHttpAppError`
+   * devuelve los `AppError` sin tocarlos.
+   */
+  if (isOffline()) {
+    log.debug(`✕ ${config.method?.toUpperCase()} ${config.url} — sin conexión`);
+    throw new AppError('NETWORK');
+  }
+
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
