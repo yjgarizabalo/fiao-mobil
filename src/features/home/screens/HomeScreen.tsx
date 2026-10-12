@@ -154,25 +154,31 @@ export const HomeScreen = () => {
             contentFit="contain"
           />
 
-          <PressableScale
-            onPress={() => router.push(routes.tabs.profile)}
-            haptic="tap"
-            activeScale={0.92}
-            accessibilityLabel="Ir a tu perfil"
-            style={styles.avatarButton}
-          >
-            <Ionicons name="person" size={20} color={theme.color.textInverse} />
-          </PressableScale>
+          {/*
+            Los dos controles de "chrome" van juntos a la derecha de la barra:
+            el de modo y el del perfil. Colgado del saludo, el de modo quedaba
+            justo debajo del avatar y amontonaba esa esquina.
+          */}
+          <View style={styles.heroHeaderActions}>
+            {/* Cambiar a modo cliente: ver lo que DEBE en otras tiendas. */}
+            <ModeSwitcher inverse />
+
+            <PressableScale
+              onPress={() => router.push(routes.tabs.profile)}
+              haptic="tap"
+              activeScale={0.92}
+              accessibilityLabel="Ir a tu perfil"
+              style={styles.avatarButton}
+            >
+              <Ionicons name="person" size={20} color={theme.color.textInverse} />
+            </PressableScale>
+          </View>
         </View>
 
         <View style={styles.heroContext}>
-          <View style={styles.heroGreeting}>
-            <Text variant="caption" color="textInverseSubtle">
-              {greeting}
-            </Text>
-            {/* Cambiar a modo cliente: ver lo que DEBE en otras tiendas. */}
-            <ModeSwitcher inverse />
-          </View>
+          <Text variant="caption" color="textInverseSubtle">
+            {greeting}
+          </Text>
           <BusinessSwitcher inverse />
         </View>
 
@@ -374,10 +380,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     marginTop: theme.spacing.md,
   },
-  heroGreeting: {
+  heroHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
   avatarButton: {

@@ -31,7 +31,7 @@ import {
   useState,
 } from 'react';
 
-import { toAppError } from '@/core/errors/AppError';
+import { type AppError, toAppError } from '@/core/errors/AppError';
 import { createLogger } from '@/core/logger';
 import { readCache, writeCache } from '@/core/storage/cache';
 import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
@@ -66,6 +66,15 @@ interface AppModeContextValue {
   hasLoadedAccounts: boolean;
   /** El usuario es cliente de al menos una tienda. */
   isLinked: boolean;
+  /**
+   * La última consulta de vínculos falló. Importa distinguirlo de "no tiene
+   * tiendas": sin este dato la interfaz afirmaba "todavía nadie te ha
+   * vinculado" cuando en realidad no había podido preguntarlo, que es una
+   * afirmación que no nos consta.
+   */
+  accountsError: AppError | null;
+  /** Se preguntó, respondió bien, y de verdad no hay ninguna tienda. */
+  hasConfirmedNoAccounts: boolean;
   setMode: (mode: AppMode) => void;
   /** Vuelve a consultar los vínculos (tras aceptar una invitación). */
   refreshAccounts: () => Promise<void>;
@@ -85,6 +94,7 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
   const [accounts, setAccounts] = useState<ClientAccount[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [hasLoadedAccounts, setHasLoadedAccounts] = useState(false);
+  const [accountsError, setAccountsError] = useState<AppError | null>(null);
 
   /**
    * Espejo síncrono de `accounts`, para el `catch` de la carga: hay que saber
@@ -135,12 +145,23 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
     try {
       const items = await clientApi.listAccounts();
       applyAccounts(items);
+      setAccountsError(null);
       if (cacheKey) void writeCache(cacheKey, items);
     } catch (caught) {
-      // Un fallo aquí no debe bloquear nada: el modo tendero funciona igual y
-      // la pantalla de cliente mostrará su propio error al intentar cargar.
-      log.warn('No se pudieron consultar las tiendas donde te fían', {
-        code: toAppError(caught).code,
+      /**
+       * Un fallo aquí no bloquea nada: el modo tendero funciona igual y la
+       * pantalla de cliente muestra su propio error al cargar. Lo que sí
+       * importa es **no** dejar `accounts` vacío pasando por un hecho: se
+       * guarda el error para que la interfaz diga "no pudimos consultarlo" en
+       * vez de "no tienes tiendas".
+       *
+       * El caso más común es el arranque en frío del backend gratuito, que
+       * responde 5xx mientras despierta; por eso es `warn` y no `error`.
+       */
+      const appError = toAppError(caught);
+      setAccountsError(appError);
+      log.warn('No se pudo consultar si te fían en alguna tienda', {
+        code: appError.code,
       });
     } finally {
       setIsLoadingAccounts(false);
@@ -154,6 +175,7 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
     } else {
       applyAccounts([]);
       setHasLoadedAccounts(false);
+      setAccountsError(null);
       // El modo no se arrastra entre cuentas: quien entre después empieza en
       // tendero hasta que elija otra cosa.
       setModeState('merchant');
@@ -175,10 +197,22 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
       isLoadingAccounts,
       hasLoadedAccounts,
       isLinked: accounts.length > 0,
+      accountsError,
+      hasConfirmedNoAccounts:
+        hasLoadedAccounts && accountsError === null && accounts.length === 0,
       setMode,
       refreshAccounts: loadAccounts,
     }),
-    [mode, isReady, accounts, isLoadingAccounts, hasLoadedAccounts, setMode, loadAccounts],
+    [
+      mode,
+      isReady,
+      accounts,
+      isLoadingAccounts,
+      hasLoadedAccounts,
+      accountsError,
+      setMode,
+      loadAccounts,
+    ],
   );
 
   return <AppModeContext.Provider value={value}>{children}</AppModeContext.Provider>;

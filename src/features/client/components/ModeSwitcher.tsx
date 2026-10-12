@@ -29,6 +29,14 @@ import {
 import { IconBubble, PressableScale, Sheet, Text } from '@/ui';
 import { theme } from '@/theme';
 
+/**
+ * Iconos de los **modos**, para distinguirlos dentro de la hoja.
+ *
+ * No se usan en la píldora a propósito: ahí `storefront` chocaba con la
+ * pestaña "Negocios" y `wallet` con la de "Mi cuenta" —el mismo glifo
+ * significando dos cosas en la misma pantalla—. La píldora lleva el icono de
+ * la *acción* (cambiar), y quién es cada modo lo dice el texto.
+ */
 const MODE_ICON: Record<AppMode, keyof typeof Ionicons.glyphMap> = {
   merchant: 'storefront-outline',
   client: 'wallet-outline',
@@ -40,7 +48,8 @@ export interface ModeSwitcherProps {
 }
 
 export const ModeSwitcher = ({ inverse = false }: ModeSwitcherProps) => {
-  const { mode, setMode, isLinked, isLoadingAccounts } = useAppMode();
+  const { mode, setMode, isLinked, isLoadingAccounts, hasConfirmedNoAccounts } =
+    useAppMode();
   const [isOpen, setIsOpen] = useState(false);
 
   const choose = (next: AppMode) => {
@@ -63,18 +72,13 @@ export const ModeSwitcher = ({ inverse = false }: ModeSwitcherProps) => {
         style={[styles.pill, inverse ? styles.pillInverse : styles.pillPlain]}
       >
         <Ionicons
-          name={MODE_ICON[mode]}
+          name="swap-horizontal"
           size={14}
           color={inverse ? theme.color.textInverse : theme.color.brandStrong}
         />
         <Text variant="captionStrong" color={inverse ? 'textInverse' : 'brandStrong'}>
           Modo {APP_MODE_LABEL[mode].toLowerCase()}
         </Text>
-        <Ionicons
-          name="swap-horizontal"
-          size={14}
-          color={inverse ? theme.color.textInverseMuted : theme.color.textSubtle}
-        />
       </PressableScale>
 
       <Sheet
@@ -92,14 +96,20 @@ export const ModeSwitcher = ({ inverse = false }: ModeSwitcherProps) => {
           <ModeOption
             mode="client"
             active={mode === 'client'}
-            // Mientras se consulta el vínculo no se promete nada: si no hay
-            // tiendas, la pantalla de cliente explica cómo vincularse.
+            /*
+              Solo se afirma "ninguna tienda te ha vinculado" cuando el
+              servidor lo confirmó. Si la consulta falló —el backend gratuito
+              responde 5xx mientras despierta— no se dice nada: el modo entra
+              igual y allí sí se explica qué pasó.
+            */
             note={
               isLoadingAccounts
                 ? 'Buscando tus tiendas…'
                 : isLinked
                   ? undefined
-                  : 'Todavía ninguna tienda te ha vinculado'
+                  : hasConfirmedNoAccounts
+                    ? 'Todavía ninguna tienda te ha vinculado'
+                    : undefined
             }
             onPress={() => choose('client')}
           />
@@ -151,11 +161,16 @@ const ModeOption = ({ mode, active, note, onPress }: ModeOptionProps) => (
 );
 
 const styles = StyleSheet.create({
+  /**
+   * Sin `alignSelf`: la alineación la decide quien la coloca. Cuando la
+   * píldora forzaba `flex-start` se desalineaba dentro de las filas del héroe,
+   * porque en un contenedor en fila ese `alignSelf` actúa sobre el eje
+   * vertical y anulaba el centrado del padre.
+   */
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-    alignSelf: 'flex-start',
     borderRadius: theme.radius.pill,
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,

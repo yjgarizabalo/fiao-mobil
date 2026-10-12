@@ -46,7 +46,7 @@ export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useSession();
   const { businesses, activeBusiness, activeRole } = useBusinesses();
-  const { mode, accounts } = useAppMode();
+  const { mode, accounts, hasConfirmedNoAccounts } = useAppMode();
   const dialog = useDialog();
   const toast = useToast();
 
@@ -188,7 +188,10 @@ export const ProfileScreen = () => {
               description={
                 accounts.length > 0
                   ? pluralize(accounts.length, 'tienda')
-                  : 'Todavía nadie te ha vinculado'
+                  : hasConfirmedNoAccounts
+                    ? 'Todavía nadie te ha vinculado'
+                    : // La consulta no respondió: no se afirma que no hay ninguna.
+                      'Toca para ver tus tiendas'
               }
               onPress={() => router.push(routes.clientMode.wallet)}
             />
@@ -328,6 +331,7 @@ const styles = StyleSheet.create({
   },
   heroSwitcher: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     marginTop: theme.spacing.xs,
   },

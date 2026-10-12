@@ -101,25 +101,27 @@ export const ClientWalletScreen = () => {
             contentFit="contain"
           />
 
-          <PressableScale
-            onPress={() => router.push(routes.clientMode.profile)}
-            haptic="tap"
-            activeScale={0.92}
-            accessibilityLabel="Ir a tu perfil"
-            style={styles.avatarButton}
-          >
-            <Ionicons name="person" size={20} color={theme.color.textInverse} />
-          </PressableScale>
+          {/* Misma barra que `HomeScreen`: modo y perfil juntos a la derecha. */}
+          <View style={styles.heroHeaderActions}>
+            {/* Volver a modo tendero. */}
+            <ModeSwitcher inverse />
+
+            <PressableScale
+              onPress={() => router.push(routes.clientMode.profile)}
+              haptic="tap"
+              activeScale={0.92}
+              accessibilityLabel="Ir a tu perfil"
+              style={styles.avatarButton}
+            >
+              <Ionicons name="person" size={20} color={theme.color.textInverse} />
+            </PressableScale>
+          </View>
         </View>
 
         <View style={styles.heroContext}>
-          <View style={styles.heroGreeting}>
-            <Text variant="caption" color="textInverseSubtle">
-              {greeting}
-            </Text>
-            {/* Volver a modo tendero: la misma píldora que usa `HomeScreen`. */}
-            <ModeSwitcher inverse />
-          </View>
+          <Text variant="caption" color="textInverseSubtle">
+            {greeting}
+          </Text>
         </View>
 
         <View style={styles.heroBalance}>
@@ -306,10 +308,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     marginTop: theme.spacing.md,
   },
-  heroGreeting: {
+  heroHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
   heroBalance: {
