@@ -41,6 +41,21 @@ import { clientApi } from '@/features/client/api/clientApi';
 
 const log = createLogger('app-mode');
 
+/**
+ * Espera antes del único reintento.
+ *
+ * El backend gratuito se duerme y, mientras despierta, el proxy responde 5xx
+ * en vez de esperar. Un reintento corto convierte ese fallo en un arranque
+ * normal, y de paso hace que un `warn` en la consola signifique de verdad que
+ * algo persiste y no que el servicio estaba estirándose.
+ *
+ * No es un keep-alive: no hay pings en segundo plano, solo un segundo intento
+ * de una petición que el usuario ya provocó al abrir la app.
+ */
+const RETRY_DELAY_MS = 2500;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export type AppMode = 'merchant' | 'client';
 
 /** Etiquetas en español, en un solo sitio: las usan el interruptor y el perfil. */
@@ -101,6 +116,13 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
    * si ya hay vínculos pintados (de caché) sin esperar a un re-render.
    */
   const accountsRef = useRef<ClientAccount[]>([]);
+
+  /**
+   * Generación de carga. El reintento espera unos segundos, y en ese rato el
+   * usuario pudo cerrar sesión o entrar otro: si la generación cambió, el
+   * resultado que llega es de otra vida y se descarta.
+   */
+  const loadIdRef = useRef(0);
   const applyAccounts = useCallback((items: ClientAccount[]) => {
     accountsRef.current = items;
     setAccounts(items);
@@ -142,12 +164,36 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
+    const loadId = loadIdRef.current + 1;
+    loadIdRef.current = loadId;
+
+    /**
+     * Un intento, y si falla por algo reintentable (5xx, red, timeout) otro
+     * más tras una pausa. Un 401 o un 403 no se reintentan: reintentar no los
+     * arregla.
+     */
+    const fetchAccounts = async () => {
+      try {
+        return await clientApi.listAccounts();
+      } catch (firstError) {
+        const appError = toAppError(firstError);
+        if (!appError.isRetryable) throw appError;
+
+        log.info('Reintentando leer el panel del usuario', appError.logContext);
+        await wait(RETRY_DELAY_MS);
+        if (loadIdRef.current !== loadId) throw appError;
+        return clientApi.listAccounts();
+      }
+    };
+
     try {
-      const items = await clientApi.listAccounts();
+      const items = await fetchAccounts();
+      if (loadIdRef.current !== loadId) return;
       applyAccounts(items);
       setAccountsError(null);
       if (cacheKey) void writeCache(cacheKey, items);
     } catch (caught) {
+      if (loadIdRef.current !== loadId) return;
       /**
        * Un fallo aquí no bloquea nada: el modo tendero funciona igual y la
        * pantalla de cliente muestra su propio error al cargar. Lo que sí
@@ -160,12 +206,17 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
        */
       const appError = toAppError(caught);
       setAccountsError(appError);
-      log.warn('No se pudo consultar si te fían en alguna tienda', {
-        code: appError.code,
-      });
+      log.warn(
+        'No se pudo leer el panel del usuario tras reintentar; el modo cliente queda sin vínculos conocidos (no bloquea nada)',
+        appError.logContext,
+      );
     } finally {
-      setIsLoadingAccounts(false);
-      setHasLoadedAccounts(true);
+      // Sin `return` dentro del `finally`: ahí un `return` se traga el flujo
+      // del `try`/`catch`. Basta con no tocar el estado si la carga caducó.
+      if (loadIdRef.current === loadId) {
+        setIsLoadingAccounts(false);
+        setHasLoadedAccounts(true);
+      }
     }
   }, [applyAccounts, userId]);
 
@@ -173,6 +224,8 @@ export const AppModeProvider = ({ children }: { children: ReactNode }) => {
     if (isAuthenticated) {
       void loadAccounts();
     } else {
+      // Invalida cualquier carga en vuelo: su resultado ya no es de nadie.
+      loadIdRef.current += 1;
       applyAccounts([]);
       setHasLoadedAccounts(false);
       setAccountsError(null);
