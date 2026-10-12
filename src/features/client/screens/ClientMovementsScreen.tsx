@@ -7,10 +7,17 @@
  * qué se me fue el fiado este mes?" sin importar la tienda. Por eso cada fila
  * dice de dónde viene.
  *
- * El filtro usa `SegmentedControl` con contadores, el mismo patrón que la
- * lista de clientes del tendero, y se aplica en memoria: el extracto ya está
- * cargado entero (viene de las mismas deudas que alimentan el inicio), así que
- * filtrar no cuesta una petición.
+ * La estructura copia la de `DebtorListScreen`, que es la pantalla-lista de
+ * referencia del proyecto: `Screen` con el fondo de la app, `AppBar large`, los
+ * controles fijos debajo —no se van con el scroll— y la lista al final. El
+ * fondo se deja en el de siempre a propósito: con `background="surface"` la
+ * pantalla se pintaba blanca de borde a borde y, como la barra de estado es
+ * translúcida, esa pestaña mostraba ahí un color distinto al del resto de la
+ * app. Las filas se ven sobre superficie gracias al contenedor de la lista.
+ *
+ * El filtro se aplica en memoria: el extracto ya está cargado entero (sale de
+ * las mismas deudas que alimentan el inicio), así que filtrar no cuesta una
+ * petición.
  *
  * Comparte `cacheKey` con el inicio del modo cliente a propósito: las dos
  * pantallas se arman con la misma respuesta, y así al entrar aquí se ve el
@@ -81,7 +88,7 @@ export const ClientMovementsScreen = () => {
     return movements.filter((row) => row.movement.kind === kind);
   }, [filter, movements]);
 
-  /** Lo fiado y lo abonado del tramo visible, para el resumen del encabezado. */
+  /** Lo fiado y lo abonado en total, para el resumen de arriba. */
   const totals = useMemo(() => {
     let owed = 0;
     let paid = 0;
@@ -98,8 +105,8 @@ export const ClientMovementsScreen = () => {
   );
 
   return (
-    <Screen background="surface">
-      <AppBar title="Movimientos" large bordered />
+    <Screen>
+      <AppBar title="Movimientos" large />
 
       {standings.isLoading ? (
         <View style={styles.padded}>
@@ -115,64 +122,72 @@ export const ClientMovementsScreen = () => {
           tone="brand"
         />
       ) : (
-        <FlatList
-          data={visible}
-          keyExtractor={(row) => row.movement.id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={Divider}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={standings.isRefreshing}
-              onRefresh={standings.refresh}
-              tintColor={theme.color.brand}
-              colors={[theme.color.brand]}
+        <>
+          {/* Controles fijos: el filtro no debe irse con el scroll. */}
+          <View style={styles.controls}>
+            <StaleNotice visible={standings.isStale} />
+
+            <Text variant="caption" color="textMuted" style={styles.summary}>
+              Te han fiado{' '}
+              <Text variant="captionStrong" color="dangerStrong">
+                {formatMoney(totals.owed)}
+              </Text>
+              {'   ·   '}
+              Has abonado{' '}
+              <Text variant="captionStrong" color="brandStrong">
+                {formatMoney(totals.paid)}
+              </Text>
+            </Text>
+
+            <SegmentedControl<MovementFilter>
+              options={[
+                { value: 'all', label: 'Todos', count: counts.all },
+                { value: 'debts', label: 'Fiado', count: counts.debts },
+                { value: 'payments', label: 'Abonos', count: counts.payments },
+              ]}
+              value={filter}
+              onChange={setFilter}
             />
-          }
-          ListHeaderComponent={
-            <View style={styles.header}>
-              <StaleNotice visible={standings.isStale} />
+          </View>
 
-              <View style={styles.summary}>
-                <Text variant="caption" color="textMuted">
-                  Te han fiado{' '}
-                  <Text variant="captionStrong" color="dangerStrong">
-                    {formatMoney(totals.owed)}
-                  </Text>
-                  {'  ·  '}
-                  Has abonado{' '}
-                  <Text variant="captionStrong" color="brandStrong">
-                    {formatMoney(totals.paid)}
-                  </Text>
-                </Text>
-              </View>
-
-              <SegmentedControl<MovementFilter>
-                options={[
-                  { value: 'all', label: 'Todos', count: counts.all },
-                  { value: 'debts', label: 'Fiado', count: counts.debts },
-                  { value: 'payments', label: 'Abonos', count: counts.payments },
-                ]}
-                value={filter}
-                onChange={setFilter}
+          <FlatList
+            data={visible}
+            keyExtractor={(row) => row.movement.id}
+            renderItem={renderItem}
+            ItemSeparatorComponent={Divider}
+            /*
+             * El contenedor de la lista es el que lleva la superficie: así las
+             * filas se leen como un extracto de una sola pieza sin convertir
+             * cada movimiento en una tarjeta suelta, y el fondo de la pantalla
+             * —y con él la franja de la barra de estado— sigue siendo el de
+             * toda la app.
+             */
+            contentContainerStyle={styles.listContent}
+            style={styles.list}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={standings.isRefreshing}
+                onRefresh={standings.refresh}
+                tintColor={theme.color.brand}
+                colors={[theme.color.brand]}
               />
-            </View>
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="filter-outline"
-              title="Nada en este filtro"
-              message={
-                filter === 'debts'
-                  ? 'No hay vales fiados registrados.'
-                  : 'Todavía no tienes abonos registrados.'
-              }
-              secondaryActionLabel="Ver todos"
-              onSecondaryAction={() => setFilter('all')}
-            />
-          }
-        />
+            }
+            ListEmptyComponent={
+              <EmptyState
+                icon="filter-outline"
+                title="Nada en este filtro"
+                message={
+                  filter === 'debts'
+                    ? 'No hay vales fiados registrados.'
+                    : 'Todavía no tienes abonos registrados.'
+                }
+                secondaryActionLabel="Ver todos"
+                onSecondaryAction={() => setFilter('all')}
+              />
+            }
+          />
+        </>
       )}
     </Screen>
   );
@@ -183,14 +198,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.layout.gutter,
     paddingTop: theme.spacing.lg,
   },
-  listContent: {
+  controls: {
     paddingHorizontal: theme.layout.gutter,
-    paddingBottom: theme.spacing['3xl'],
-  },
-  header: {
-    paddingBottom: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   summary: {
-    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.xxs,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    marginHorizontal: theme.layout.gutter,
+    marginBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: theme.color.border,
   },
 });

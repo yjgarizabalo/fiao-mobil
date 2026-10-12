@@ -31,10 +31,16 @@ react         19.1.0
 react-native  0.81.4
 ```
 
-`npx expo-doctor` reporta hoy **17/18**: el único check que falla es «packages match versions
-required by installed Expo SDK», por deriva de parche en `expo-router`, `expo-splash-screen` y
-`expo-status-bar` (el registro avanzó, el proyecto no). Es un aviso, **no** rompe el build ni
-EAS. No se arregla solo: subirlos exige autorización y volver a probar en las dos plataformas.
+`npx expo-doctor` reporta hoy **16/18**. Los dos checks que fallan son avisos conocidos que
+**no** rompen el build ni EAS:
+
+1. «packages match versions required by installed Expo SDK», por deriva de parche en
+   `expo-router`, `expo-splash-screen` y `expo-status-bar` (el registro avanzó, el proyecto
+   no). Subirlos exige autorización y volver a probar en las dos plataformas.
+2. «required peer dependencies are installed»: falta `react-dom`, que pide
+   `react-native-web`. Solo afecta al target **web**, que es secundario (Fase 0.2).
+   `react-dom` está fijado en `overrides` y listado en `expo.install.exclude`, pero no
+   declarado en `dependencies`; instalarlo toca el trío congelado y requiere autorización.
 
 Está **prohibido** sin autorización explícita:
 
@@ -125,6 +131,7 @@ fiao-mobil-v2/
 │   │   ├── navigation/       # routes.ts — todas las rutas en un sitio
 │   │   ├── storage/          # AsyncStorage tipado
 │   │   ├── logger/           # logs con niveles y redacción de tokens
+│   │   ├── connectivity.ts   # estado de la red (expo-network)
 │   │   ├── haptics.ts
 │   │   └── utils/            # format.ts, validation.ts
 │   ├── domain/               # entidades, constantes y mappers
@@ -278,6 +285,28 @@ toItem<T>(payload); // → T | null
 toAmount(value); // "15000.00" → 15000
 ```
 
+### Sin conexión
+
+`src/core/connectivity.ts` (sobre `expo-network`) sabe si hay internet **antes** de
+intentar nada, y expone dos puertas sobre la misma función para que la interfaz y la red
+no puedan discrepar: `useConnectivity()` para componentes e `isOffline()` para el
+interceptor de axios.
+
+Qué pasa cuando no hay red, sin que ninguna pantalla tenga que programarlo:
+
+- el interceptor de peticiones **corta de inmediato** con `AppError('NETWORK')` en vez de
+  dejar morir la petición contra el timeout de 60 s, así que un formulario avisa al
+  instante;
+- `OfflineBanner`, montado una sola vez en `app/_layout.tsx`, muestra la píldora de aviso;
+- `ErrorState` detecta que el dispositivo está sin red y pinta `OfflineState` en vez del
+  error genérico, de modo que **todas** las pantallas dicen lo correcto;
+- `useAsyncData` recarga sola en cuanto vuelve la conexión, y mientras tanto conserva lo
+  que haya en caché con `StaleNotice`.
+
+Regla derivada: **nunca afirmes un vacío que no te consta**. Si una lista vino vacía
+porque la petición falló, no se dice "no tienes nada" —se muestra el error—. Vale para
+negocios, clientes y tiendas del modo cliente.
+
 ### Errores
 
 **Un** modelo: `AppError` con `code` cerrado (`NETWORK`, `TIMEOUT`, `UNAUTHORIZED`,
@@ -345,7 +374,8 @@ degradado `theme.gradient.hero`.
 | Formulario    | `TextField`, `MoneyField`, `OptionPicker`, `SearchBar`, `SegmentedControl`                                |
 | Datos         | `Avatar`, `Badge`, `ListRow`, `StatTile`, `IconBubble`                                                    |
 | Superposición | `Sheet` (bottom sheet con gesto), `Dialog` + `useDialog`, `ToastProvider` + `useToast`                    |
-| Estados       | `Skeleton`, `RowSkeleton`, `ListSkeleton`, `CardSkeleton`, `EmptyState`, `ErrorState`, `ListFooterLoader` |
+| Estados       | `Skeleton`, `RowSkeleton`, `ListSkeleton`, `CardSkeleton`, `EmptyState`, `ErrorState`, `OfflineState`, `ListFooterLoader` |
+| Conectividad  | `OfflineBanner` (aviso global, va una sola vez en la raíz), `StaleNotice`                                  |
 
 Reglas de uso:
 

@@ -51,7 +51,13 @@ const TOP_DEBTORS = 5;
 export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
-  const { activeBusinessId, activeBusiness, isEmpty: hasNoBusiness } = useBusinesses();
+  const {
+    activeBusinessId,
+    activeBusiness,
+    isEmpty: hasNoBusiness,
+    error: businessError,
+    refresh: refreshBusinesses,
+  } = useBusinesses();
   const { setMode } = useAppMode();
 
   /**
@@ -97,6 +103,25 @@ export const HomeScreen = () => {
   }, [debtors.data]);
 
   const greeting = `Hola, ${getFirstName(displayName(user)) || 'Usuario'}`;
+
+  /* ── No se pudo cargar la lista de negocios ────────────────────────────── */
+
+  /*
+   * Antes de afirmar que no hay negocios hay que poder afirmarlo: si la lista
+   * no cargó —sin internet, o el servidor dormido— `businesses` queda vacío
+   * igual que si el usuario no tuviera ninguno, y la app le proponía crear uno
+   * que ya tiene. `ErrorState` se encarga de distinguir el caso: si el
+   * dispositivo está sin red muestra la pantalla de sin conexión.
+   */
+  if (hasNoBusiness && businessError) {
+    return (
+      <Screen padded>
+        <View style={[styles.emptyHost, { paddingTop: insets.top }]}>
+          <ErrorState error={businessError} onRetry={() => void refreshBusinesses()} />
+        </View>
+      </Screen>
+    );
+  }
 
   /* ── Sin negocios: el usuario acaba de registrarse ─────────────────────── */
 

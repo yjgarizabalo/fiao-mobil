@@ -32,7 +32,7 @@ import 'react-native-reanimated';
 import { SessionProvider } from '@/features/auth/session/SessionProvider';
 import { BusinessProvider } from '@/features/businesses/state/BusinessProvider';
 import { AppModeProvider } from '@/features/client/state/AppModeProvider';
-import { ToastProvider } from '@/ui';
+import { OfflineBanner, ToastProvider } from '@/ui';
 import { theme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
@@ -59,6 +59,13 @@ export default function RootLayout() {
                     <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
                     <Stack.Screen name="(app)" options={{ animation: 'fade' }} />
                   </Stack>
+
+                  {/*
+                    Después del Stack para quedar por encima de cualquier
+                    pantalla, y dentro del ToastProvider porque los dos avisos
+                    comparten esquina y el toast se aparta cuando este aparece.
+                  */}
+                  <OfflineBanner />
                 </ToastProvider>
               </BusinessProvider>
             </AppModeProvider>
