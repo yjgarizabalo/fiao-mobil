@@ -25,6 +25,8 @@ import { type BusinessSummary, displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
+import { useAppMode } from '@/features/client/state/AppModeProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { DebtorRow } from '@/features/debtors/components/DebtorRow';
 import {
@@ -50,6 +52,7 @@ export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
   const { activeBusinessId, activeBusiness, isEmpty: hasNoBusiness } = useBusinesses();
+  const { setMode } = useAppMode();
 
   /**
    * Los totales los calcula el servidor. Antes se pedía una página de 100
@@ -101,12 +104,23 @@ export const HomeScreen = () => {
     return (
       <Screen padded>
         <View style={[styles.emptyHost, { paddingTop: insets.top }]}>
+          {/*
+            La acción secundaria existe porque no todo el que se registra tiene
+            tienda: hay quien entra solo a mirar lo que le fían. Sin ella
+            quedaba encerrado en "crea tu primer negocio", sin forma de llegar
+            al modo cliente.
+          */}
           <EmptyState
             icon="storefront-outline"
             title="Crea tu primer negocio"
             message="Fiao organiza tus vales por negocio. Crea uno para empezar a registrar clientes y deudas."
             actionLabel="Crear negocio"
             onAction={() => router.push(routes.business.create)}
+            secondaryActionLabel="No tengo tienda, me fían a mí"
+            onSecondaryAction={() => {
+              setMode('client');
+              router.replace(routes.clientMode.wallet);
+            }}
             tone="brand"
           />
         </View>
@@ -152,9 +166,13 @@ export const HomeScreen = () => {
         </View>
 
         <View style={styles.heroContext}>
-          <Text variant="caption" color="textInverseSubtle">
-            {greeting}
-          </Text>
+          <View style={styles.heroGreeting}>
+            <Text variant="caption" color="textInverseSubtle">
+              {greeting}
+            </Text>
+            {/* Cambiar a modo cliente: ver lo que DEBE en otras tiendas. */}
+            <ModeSwitcher inverse />
+          </View>
           <BusinessSwitcher inverse />
         </View>
 
@@ -355,6 +373,12 @@ const styles = StyleSheet.create({
   heroContext: {
     gap: theme.spacing.xs,
     marginTop: theme.spacing.md,
+  },
+  heroGreeting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
   },
   avatarButton: {
     width: 40,

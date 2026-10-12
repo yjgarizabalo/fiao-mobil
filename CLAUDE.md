@@ -90,6 +90,10 @@ Funciones de dominio que hay que usar en vez de recalcular en la pantalla:
 - `summarizeDebts(debts, serverBalance)` — total fiado, total pagado, saldo, deudas
   abiertas/pagadas y la vencida más antigua. Prioriza el saldo del servidor.
 - `buildMovements(debts)` — extracto unificado de deudas + pagos ordenado por fecha.
+- `summarizeStandings(standings)` — consolidado del **modo cliente**: cuánto debe el
+  usuario sumando todas las tiendas donde le fían.
+- `buildClientMovements(standings)` — extracto del cliente cruzando varias tiendas; cada
+  fila sabe de qué tienda viene.
 
 **Multi-tenant:** clientes, deudas y pagos pertenecen a un negocio y viajan con el header
 `x-business-id`. Nunca lo pongas a mano: usa `businessHeader(businessId)` de
@@ -129,6 +133,7 @@ fiao-mobil-v2/
 │   └── features/             # una carpeta por área de negocio
 │       ├── auth/             # api · session · screens
 │       ├── businesses/       # api · state · components · screens
+│       ├── client/           # modo cliente: api · state · components · screens
 │       ├── debtors/          # api · components · screens
 │       ├── debts/            # api · components
 │       ├── payments/         # api · components
@@ -179,6 +184,10 @@ Así la pantalla se puede mover, reutilizar o probar sin pelear con el enrutador
 | `/business/new`      | `app/(app)/business/new.tsx`      | Crear negocio                                        |
 | `/settings/profile`  | `app/(app)/settings/profile.tsx`  | Editar perfil                                        |
 | `/settings/security` | `app/(app)/settings/security.tsx` | Cambiar contraseña                                   |
+| `/wallet`            | `app/(app)/(client)/wallet.tsx`    | **Modo cliente**: cuánto debo y en qué tiendas      |
+| `/movements`         | `app/(app)/(client)/movements.tsx` | Modo cliente: extracto de todas las tiendas         |
+| `/me`                | `app/(app)/(client)/me.tsx`        | Modo cliente: perfil (igual que `/profile`)         |
+| `/store/[id]`        | `app/(app)/store/[id].tsx`         | Modo cliente: mi cuenta en una tienda               |
 | —                    | `app/+not-found.tsx`              | Ruta inexistente (deep link roto)                    |
 
 Reglas:
@@ -191,18 +200,22 @@ Reglas:
 - `app/(app)/_layout.tsx` es la **guardia de sesión**: sin sesión redirige a `/login`.
   `app/(auth)/_layout.tsx` hace lo contrario. Ninguna pantalla debe comprobar la sesión.
 - Los formularios se presentan como `modal` en iOS y `card` en Android (ya configurado).
-- La barra de pestañas es propia: `src/ui/TabBar.tsx`.
+- La barra de pestañas es propia: `src/ui/TabBar.tsx`. Hay **dos** juegos de pestañas,
+  uno por modo: `(tabs)` para el tendero y `(client)` para el cliente. Cuál se ve lo
+  decide `AppModeProvider`; quien navega entre ellos es `ModeSwitcher` o la puerta de
+  entrada, siempre con `router.replace` (son dos raíces, no una encima de la otra).
 
 ---
 
 ## FASE 4 — Estado
 
-**Dos providers globales**, montados en `app/_layout.tsx`:
+**Tres providers globales**, montados en `app/_layout.tsx`:
 
 | Provider           | Hook              | Para qué                                                                      |
 | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
 | `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout`, `patchUser`                  |
 | `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness` |
+| `AppModeProvider`  | `useAppMode()`    | **modo** `merchant` / `client` (persistido), tiendas donde al usuario le fían, `setMode`, `refreshAccounts` |
 
 Todo lo demás **no** es estado global: clientes, deudas y pagos los carga cada pantalla con
 los hooks del núcleo. Si necesitas datos en una pantalla nueva, el orden de preferencia es:
@@ -305,7 +318,9 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 | POST   | `/payments/global`    | ✅              | `paymentApi.createGlobal`                         |
 
 Llaves de AsyncStorage (contrato, compatible con el v1): `auth_token`, `refresh_token`,
-`auth_user`, más `active_business_id`. Se acceden **solo** por `StorageKeys`.
+`auth_user`, más `active_business_id` y `app_mode`. Se acceden **solo** por `StorageKeys`,
+y las tres últimas se borran al cerrar sesión para que la siguiente cuenta del dispositivo
+no herede ni el negocio ni el modo.
 
 ---
 

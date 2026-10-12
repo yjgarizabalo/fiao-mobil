@@ -102,7 +102,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         log.warn('Sesión expirada: se cierra la sesión local');
         setUser(null);
         setStatus('unauthenticated');
-        void removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
+        void removeItems([
+          StorageKeys.user,
+          StorageKeys.activeBusinessId,
+          StorageKeys.appMode,
+        ]);
         // La caché guarda datos de negocio: no debe sobrevivir a un cierre de
         // sesión y quedar visible para la siguiente cuenta del dispositivo.
         void clearCache();
@@ -183,7 +187,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 /** Borra tokens, datos locales de la sesión y la caché de datos de negocio. */
 const clearSession = async () => {
   await clearTokens();
-  await removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
+  await removeItems([StorageKeys.user, StorageKeys.activeBusinessId, StorageKeys.appMode]);
   // La caché offline pertenece al usuario que sale: se limpia para que la
   // siguiente cuenta que entre en el dispositivo no vea datos ajenos.
   await clearCache();
