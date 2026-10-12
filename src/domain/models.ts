@@ -11,8 +11,11 @@
  * los textos de pantalla.
  */
 import type {
+  BusinessRole,
   DebtStatus,
   DocumentType,
+  InvitationStatus,
+  InvitationType,
   PaymentMethod,
   TransactionType,
 } from './constants';
@@ -46,12 +49,74 @@ export interface Business {
   name: string;
   address: string;
   currency?: string;
+  /** Dueño del negocio (su `userId`). Lo devuelve el backend en el negocio. */
+  ownerId?: string;
+  /**
+   * Miembros del negocio con su rol. `GET /business` los trae embebidos
+   * (`businessUsers`), así que llegan sin pedir nada extra. Es opcional porque
+   * algunos endpoints (p. ej. el POST de creación) devuelven el negocio pelado
+   * sin la lista. Sirve para saber el rol propio (`roleInBusiness`) y, más
+   * adelante, para la pantalla de equipo.
+   */
+  members?: Member[];
+}
+
+/** Una persona con acceso a un negocio y el rol que tiene en él. */
+export interface Member {
+  /** Id de la fila de membresía (`businessUser.id`), no el del usuario. */
+  id: string;
+  userId: string;
+  role: BusinessRole;
+  /** Nombre a mostrar, ya resuelto (nombre completo, o correo si falta). */
+  name: string;
+  email?: string;
+  phone?: string;
+}
+
+/**
+ * Invitación para sumar a alguien a un negocio. La app crea y consume solo las
+ * de tipo `BUSINESS_USER`; las `DEBTOR` (vincular un cliente a su cuenta)
+ * existen en el backend pero esta app no las genera.
+ */
+export interface Invitation {
+  id: string;
+  /** Código corto que el invitado teclea para aceptar. */
+  code: string;
+  /** Negocio al que pertenece la invitación. */
+  businessId: string;
+  email?: string;
+  phone?: string;
+  /** Rol que recibirá el invitado. `null` en las invitaciones de tipo DEBTOR. */
+  role: BusinessRole | null;
+  status: InvitationStatus;
+  type: InvitationType;
+  /** ISO date de expiración (7 días por defecto en el backend). */
+  expiresAt: string;
+  createdAt?: string;
 }
 
 export interface BusinessDraft {
   name: string;
   address: string;
 }
+
+/**
+ * Rol del usuario dentro de un negocio, o `null` si no se puede determinar
+ * (falta el negocio, el usuario, o el backend no incluyó los miembros). Ese
+ * `null` es "desconocido", y `can()` lo trata de forma permisiva a propósito.
+ */
+export const roleInBusiness = (
+  business: Business | null | undefined,
+  userId: string | null | undefined,
+): BusinessRole | null => {
+  if (!business || !userId) return null;
+  const membership = business.members?.find((member) => member.userId === userId);
+  if (membership) return membership.role;
+  // El dueño siempre debería estar en `members` como OWNER; el `ownerId` es un
+  // respaldo por si el backend recortara la lista de miembros.
+  if (business.ownerId && business.ownerId === userId) return 'OWNER';
+  return null;
+};
 
 /* ── Cliente / deudor ─────────────────────────────────────────────────────── */
 

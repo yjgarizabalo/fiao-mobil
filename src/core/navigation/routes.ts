@@ -36,6 +36,18 @@ export const routes = {
     create: '/business/new' as Href,
   },
 
+  team: {
+    /** Equipo del negocio activo. */
+    list: '/team' as Href,
+    /** Invitar a alguien al negocio activo. */
+    invite: '/team/invite' as Href,
+  },
+
+  invitation: {
+    /** Unirse a un negocio con un código. */
+    accept: '/invitation/accept' as Href,
+  },
+
   client: {
     create: (businessId: string): Href =>
       ({ pathname: '/client/new', params: { businessId } }) as unknown as Href,

@@ -11,7 +11,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ import { routes } from '@/core/navigation/routes';
 import { formatPhone, pluralize } from '@/core/utils/format';
 import { displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { RoleBadge } from '@/features/businesses/components/RoleBadge';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import {
   Avatar,
@@ -42,7 +43,7 @@ const SUPPORT_EMAIL = 'soporte@fiao.app';
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useSession();
-  const { businesses } = useBusinesses();
+  const { businesses, activeBusiness, activeRole } = useBusinesses();
   const dialog = useDialog();
   const toast = useToast();
 
@@ -166,8 +167,33 @@ export const ProfileScreen = () => {
           <SettingRow
             icon="storefront-outline"
             label="Mis negocios"
-            description={pluralize(businesses.length, 'negocio', 'negocios')}
+            description={
+              activeBusiness
+                ? `${activeBusiness.name} · ${pluralize(businesses.length, 'negocio', 'negocios')}`
+                : pluralize(businesses.length, 'negocio', 'negocios')
+            }
+            // Muestra el rol en el negocio activo (Dueño / Cajero…). Solo aparece
+            // cuando el backend ya trajo la membresía; si no, se omite.
+            trailing={activeRole ? <RoleBadge role={activeRole} /> : undefined}
             onPress={() => router.push(routes.tabs.businesses)}
+          />
+          {activeBusiness ? (
+            <>
+              <Divider inset />
+              <SettingRow
+                icon="people-outline"
+                label="Equipo"
+                description="Quién tiene acceso a tu negocio"
+                onPress={() => router.push(routes.team.list)}
+              />
+            </>
+          ) : null}
+          <Divider inset />
+          <SettingRow
+            icon="ticket-outline"
+            label="Tengo un código"
+            description="Únete a un negocio que te invitó"
+            onPress={() => router.push(routes.invitation.accept)}
           />
         </Card>
 
@@ -213,6 +239,8 @@ interface SettingRowProps {
   label: string;
   description?: string;
   badge?: string;
+  /** Contenido a la derecha (un badge propio) que reemplaza a `badge`. */
+  trailing?: ReactNode;
   destructive?: boolean;
   onPress: () => void;
 }
@@ -222,6 +250,7 @@ const SettingRow = ({
   label,
   description,
   badge,
+  trailing,
   destructive = false,
   onPress,
 }: SettingRowProps) => (
@@ -246,7 +275,7 @@ const SettingRow = ({
       ) : null}
     </View>
 
-    {badge ? <Badge label={badge} tone="info" /> : null}
+    {trailing ?? (badge ? <Badge label={badge} tone="info" /> : null)}
 
     {!destructive ? (
       <Ionicons name="chevron-forward" size={18} color={theme.color.textSubtle} />

@@ -9,10 +9,14 @@
  */
 import { toAmount, toList } from '@/core/http/payload';
 import {
+  type BusinessRole,
   type DebtStatus,
   type DocumentType,
+  type InvitationStatus,
+  type InvitationType,
   type PaymentMethod,
   type TransactionType,
+  isBusinessRole,
   isDocumentType,
 } from './constants';
 import type {
@@ -20,6 +24,8 @@ import type {
   BusinessSummary,
   Debt,
   Debtor,
+  Invitation,
+  Member,
   Payment,
   User,
 } from './models';
@@ -57,6 +63,13 @@ const asDebtStatus = (value: unknown): DebtStatus => {
   return 'OPEN';
 };
 
+const asBusinessRole = (value: unknown): BusinessRole => {
+  const raw = asString(value).toUpperCase();
+  // El rol más restrictivo es el respaldo seguro: ante un valor raro, que no
+  // otorgue permisos de más.
+  return isBusinessRole(raw) ? raw : 'VIEWER';
+};
+
 /** Lee el `id` de una relación anidada (`debtor: { id }`). */
 const relationId = (value: unknown): string =>
   typeof value === 'object' && value !== null ? asString((value as Raw).id) : '';
@@ -81,13 +94,69 @@ export const mapUser = (raw: unknown): User => {
 
 /* ── Negocio ──────────────────────────────────────────────────────────────── */
 
+/**
+ * Una fila de `businessUsers` embebida en el negocio. El nombre a mostrar se
+ * resuelve aquí (nombre completo, o correo de respaldo) para que ninguna
+ * pantalla tenga que rearmarlo.
+ */
+export const mapMember = (raw: unknown): Member => {
+  const data = (raw ?? {}) as Raw;
+  const user = (data.user ?? {}) as Raw;
+  const fullName = `${asString(user.firstName)} ${asString(user.lastName)}`.trim();
+
+  return {
+    id: asString(data.id),
+    userId: asString(data.userId) || asString(user.id),
+    role: asBusinessRole(data.role),
+    name: fullName || asString(user.email, 'Sin nombre'),
+    email: user.email === undefined ? undefined : asString(user.email),
+    phone: user.phone === undefined ? undefined : asString(user.phone),
+  };
+};
+
 export const mapBusiness = (raw: unknown): Business => {
   const data = (raw ?? {}) as Raw;
+  // `GET /business` incluye `businessUsers`; el POST de creación no. Se deja en
+  // `undefined` cuando no viene, para distinguir "sin lista" de "sin miembros".
+  const members = Array.isArray(data.businessUsers)
+    ? data.businessUsers.map(mapMember)
+    : undefined;
+
   return {
     id: asString(data.id),
     name: asString(data.name, 'Sin nombre'),
     address: asString(data.address),
     currency: data.currency === undefined ? undefined : asString(data.currency),
+    ownerId: data.ownerId === undefined ? undefined : asString(data.ownerId),
+    members,
+  };
+};
+
+/* ── Invitación ───────────────────────────────────────────────────────────── */
+
+const asInvitationStatus = (value: unknown): InvitationStatus => {
+  const raw = asString(value).toUpperCase();
+  if (raw === 'ACCEPTED' || raw === 'EXPIRED') return raw;
+  return 'PENDING';
+};
+
+const asInvitationType = (value: unknown): InvitationType =>
+  asString(value).toUpperCase() === 'BUSINESS_USER' ? 'BUSINESS_USER' : 'DEBTOR';
+
+export const mapInvitation = (raw: unknown): Invitation => {
+  const data = (raw ?? {}) as Raw;
+  return {
+    id: asString(data.id),
+    code: asString(data.code),
+    businessId: asString(data.businessId),
+    email: data.email == null ? undefined : asString(data.email),
+    phone: data.phone == null ? undefined : asString(data.phone),
+    // En las invitaciones de tipo DEBTOR el rol viene nulo: se respeta.
+    role: data.role == null ? null : asBusinessRole(data.role),
+    status: asInvitationStatus(data.status),
+    type: asInvitationType(data.type),
+    expiresAt: asString(data.expiresAt),
+    createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
   };
 };
 

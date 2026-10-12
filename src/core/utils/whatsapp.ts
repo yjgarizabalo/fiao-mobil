@@ -67,6 +67,32 @@ export const buildDebtReminder = ({
   );
 };
 
+export interface TeamInviteInput {
+  /** Nombre del negocio al que se invita. */
+  businessName?: string;
+  /** Etiqueta del rol en español (p. ej. "Cajero"). */
+  roleLabel: string;
+  /** Código que la persona teclea en la app para unirse. */
+  code: string;
+}
+
+/**
+ * Mensaje de invitación al equipo. Incluye el paso a paso para unirse con el
+ * código dentro de la app, ya que el flujo es por código (no por deep link).
+ */
+export const buildTeamInvite = ({ businessName, roleLabel, code }: TeamInviteInput): string => {
+  const at = businessName ? ` a *${businessName}*` : '';
+
+  return (
+    `¡Hola! 👋 Te invito a unirte${at} en *Fiao* como *${roleLabel}*.\n\n` +
+    'Para entrar:\n' +
+    '1️⃣ Instala Fiao e ingresa con tu cuenta.\n' +
+    '2️⃣ Ve a *Perfil → Tengo un código*.\n' +
+    `3️⃣ Escribe este código: *${code}*\n\n` +
+    'El código vence en 7 días. ¡Te espero! 🙌'
+  );
+};
+
 /** URL lista para `Linking.openURL`. */
 export const buildWhatsAppUrl = (phone: string, message: string): string | null => {
   const number = toWhatsAppNumber(phone);

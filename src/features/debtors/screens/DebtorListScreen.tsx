@@ -69,13 +69,16 @@ const SEARCH_LOCAL_MAX = PAGE_SIZE;
 export const DebtorListScreen = () => {
   const params = useLocalSearchParams<{ businessId?: string }>();
   const { user } = useSession();
-  const { activeBusinessId, businesses, getBusiness, isEmpty: hasNoBusiness } =
+  const { activeBusinessId, businesses, getBusiness, isEmpty: hasNoBusiness, can } =
     useBusinesses();
 
   /** El parámetro manda; si no viene, se usa el negocio activo. */
   const businessId = params.businessId ?? activeBusinessId ?? null;
   const business = businessId ? getBusiness(businessId) : undefined;
   const isFilteredByParam = Boolean(params.businessId);
+
+  // Un VIEWER no registra clientes: se oculta el FAB y la acción del vacío.
+  const canCreateDebtor = businessId ? can('debtor:create', businessId) : false;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -460,9 +463,9 @@ export const DebtorListScreen = () => {
                 icon="person-add-outline"
                 title="Aún no hay clientes"
                 message="Registra a la primera persona a la que le fías y lleva su cuenta al día."
-                actionLabel={businessId ? 'Agregar cliente' : undefined}
+                actionLabel={businessId && canCreateDebtor ? 'Agregar cliente' : undefined}
                 onAction={
-                  businessId
+                  businessId && canCreateDebtor
                     ? () => router.push(routes.client.create(businessId))
                     : undefined
                 }
@@ -473,7 +476,7 @@ export const DebtorListScreen = () => {
         />
       )}
 
-      {businessId && !isSelecting ? (
+      {businessId && !isSelecting && canCreateDebtor ? (
         <Fab label="Agregar" onPress={() => router.push(routes.client.create(businessId))} />
       ) : null}
 

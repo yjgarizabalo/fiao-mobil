@@ -82,7 +82,7 @@ export const DebtorDetailScreen = () => {
 
   const debtorId = params.id ?? '';
   const businessId = params.businessId ?? '';
-  const { getBusiness } = useBusinesses();
+  const { getBusiness, can } = useBusinesses();
 
   const [isDebtSheetOpen, setIsDebtSheetOpen] = useState(false);
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE);
@@ -288,6 +288,12 @@ export const DebtorDetailScreen = () => {
   const hasDebt = summary.balance > 0;
   const isOverdue = summary.oldestOverdueDate !== null && hasDebt;
 
+  // Qué puede hacer el usuario en ESTE negocio (no siempre es el activo). Un
+  // `CASHIER` fía y cobra pero no corrige clientes; un `VIEWER` solo mira.
+  const canFiar = can('debt:create', businessId);
+  const canPay = can('payment:create', businessId);
+  const canEditDebtor = can('debtor:edit', businessId);
+
   return (
     <Screen
       scroll
@@ -301,24 +307,31 @@ export const DebtorDetailScreen = () => {
         />
       }
       footer={
-        <View style={styles.actions}>
-          <Button
-            label="Fiar"
-            icon="add-circle-outline"
-            variant="secondary"
-            onPress={() => setIsDebtSheetOpen(true)}
-            size="lg"
-            style={styles.actionButton}
-          />
-          <Button
-            label="Registrar pago"
-            icon="cash-outline"
-            onPress={() => setPaymentTarget('all')}
-            disabled={!hasDebt}
-            size="lg"
-            style={styles.actionButton}
-          />
-        </View>
+        // Un VIEWER no fía ni cobra: sin acciones, no se muestra la barra.
+        canFiar || canPay ? (
+          <View style={styles.actions}>
+            {canFiar ? (
+              <Button
+                label="Fiar"
+                icon="add-circle-outline"
+                variant="secondary"
+                onPress={() => setIsDebtSheetOpen(true)}
+                size="lg"
+                style={styles.actionButton}
+              />
+            ) : null}
+            {canPay ? (
+              <Button
+                label="Registrar pago"
+                icon="cash-outline"
+                onPress={() => setPaymentTarget('all')}
+                disabled={!hasDebt}
+                size="lg"
+                style={styles.actionButton}
+              />
+            ) : null}
+          </View>
+        ) : undefined
       }
     >
       {/* ── Héroe con la identidad y el saldo ───────────────────────────── */}
@@ -358,17 +371,19 @@ export const DebtorDetailScreen = () => {
               />
             ) : null}
             {/*
-              Editar va siempre disponible: es justo el cliente **sin** celular
-              el que más necesita que se le corrijan los datos.
+              Editar solo lo ven el dueño y el administrador (un cajero recibe
+              403 en el backend). Se oculta en vez de dejar intentar y fallar.
             */}
-            <IconButton
-              icon="create-outline"
-              onPress={() => router.push(routes.client.edit(debtorId, businessId))}
-              accessibilityLabel={`Editar los datos de ${debtor.name}`}
-              color={theme.color.textInverse}
-              surface="inverse"
-              size={20}
-            />
+            {canEditDebtor ? (
+              <IconButton
+                icon="create-outline"
+                onPress={() => router.push(routes.client.edit(debtorId, businessId))}
+                accessibilityLabel={`Editar los datos de ${debtor.name}`}
+                color={theme.color.textInverse}
+                surface="inverse"
+                size={20}
+              />
+            ) : null}
           </View>
         </View>
 
@@ -440,7 +455,11 @@ export const DebtorDetailScreen = () => {
           <EmptyState
             icon="receipt-outline"
             title="Sin movimientos"
-            message={`Aún no le has fiado nada a ${debtor.name.split(' ')[0]}. Empieza con el botón "Fiar".`}
+            message={
+              canFiar
+                ? `Aún no le has fiado nada a ${debtor.name.split(' ')[0]}. Empieza con el botón "Fiar".`
+                : `Todavía no hay movimientos registrados para ${debtor.name.split(' ')[0]}.`
+            }
             tone="brand"
           />
         ) : (

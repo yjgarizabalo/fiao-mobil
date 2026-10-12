@@ -25,7 +25,9 @@ import { type AppError, toAppError } from '@/core/errors/AppError';
 import { createLogger } from '@/core/logger';
 import { readCache, writeCache } from '@/core/storage/cache';
 import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
-import type { Business, BusinessDraft } from '@/domain/models';
+import type { BusinessRole } from '@/domain/constants';
+import { type Business, type BusinessDraft, roleInBusiness } from '@/domain/models';
+import { type BusinessAction, can as canDo } from '@/domain/permissions';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { businessApi } from '@/features/businesses/api/businessApi';
 
@@ -36,6 +38,19 @@ interface BusinessContextValue {
   /** Negocio con el que se está trabajando. `null` si aún no hay ninguno. */
   activeBusiness: Business | null;
   activeBusinessId: string | null;
+  /**
+   * Rol del usuario en el negocio activo. `null` cuando es desconocido (aún
+   * cargando o el backend no incluyó los miembros); en ese caso `can()` es
+   * permisivo y deja que el 403 del servidor decida.
+   */
+  activeRole: BusinessRole | null;
+  /**
+   * ¿Puede el usuario ejecutar esta acción? Sin `businessId` usa el negocio
+   * activo; con `businessId` evalúa el rol en ese negocio concreto (la pantalla
+   * de detalle o la lista filtrada por parámetro pueden operar sobre uno que no
+   * es el activo).
+   */
+  can: (action: BusinessAction, businessId?: string) => boolean;
   isLoading: boolean;
   error: AppError | null;
   /** `true` cuando el usuario todavía no ha creado ningún negocio. */
@@ -163,11 +178,33 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
     [businesses, activeBusinessId],
   );
 
+  const activeRole = useMemo(
+    () => roleInBusiness(activeBusiness, userId),
+    [activeBusiness, userId],
+  );
+
+  const roleFor = useCallback(
+    (businessId: string) =>
+      roleInBusiness(
+        businesses.find((business) => business.id === businessId),
+        userId,
+      ),
+    [businesses, userId],
+  );
+
+  const can = useCallback(
+    (action: BusinessAction, businessId?: string) =>
+      canDo(businessId ? roleFor(businessId) : activeRole, action),
+    [activeRole, roleFor],
+  );
+
   const value = useMemo<BusinessContextValue>(
     () => ({
       businesses,
       activeBusiness,
       activeBusinessId,
+      activeRole,
+      can,
       isLoading,
       error,
       isEmpty: hasLoaded && businesses.length === 0,
@@ -180,6 +217,8 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       businesses,
       activeBusiness,
       activeBusinessId,
+      activeRole,
+      can,
       isLoading,
       error,
       hasLoaded,

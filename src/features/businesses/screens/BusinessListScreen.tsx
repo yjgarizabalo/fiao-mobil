@@ -5,27 +5,19 @@
  * pantalla apilada, con el código casi duplicado). Aquí hay una sola: la
  * pestaña. El negocio activo se marca de forma explícita y se puede cambiar
  * desde aquí, además del selector del inicio.
+ *
+ * La fila vive en `BusinessRow`, hermana de `DebtorRow`: comparten tokens de
+ * tarjeta y esta lista comparte el ritmo (separador `sm`, gutter, `flexGrow`)
+ * con la de Clientes, para que ambas pestañas se sientan iguales.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/core/haptics';
 import { routes } from '@/core/navigation/routes';
+import { BusinessRow } from '@/features/businesses/components/BusinessRow';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
-import {
-  AppBar,
-  Badge,
-  Button,
-  EmptyState,
-  ErrorState,
-  Fab,
-  IconBubble,
-  ListSkeleton,
-  PressableScale,
-  Screen,
-  Text,
-} from '@/ui';
+import { AppBar, EmptyState, ErrorState, Fab, ListSkeleton, Screen } from '@/ui';
 import { theme } from '@/theme';
 
 export const BusinessListScreen = () => {
@@ -60,7 +52,8 @@ export const BusinessListScreen = () => {
         <FlatList
           data={businesses}
           keyExtractor={(business) => business.id}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -70,56 +63,14 @@ export const BusinessListScreen = () => {
               colors={[theme.color.brand]}
             />
           }
-          renderItem={({ item: business }) => {
-            const isActive = business.id === activeBusinessId;
-
-            return (
-              <View style={[styles.card, isActive ? styles.cardActive : null]}>
-                <PressableScale
-                  onPress={() => router.push(routes.tabs.clients)}
-                  haptic="tap"
-                  activeScale={0.99}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver los clientes de ${business.name}`}
-                  style={styles.cardMain}
-                >
-                  <IconBubble
-                    icon="storefront"
-                    tone={isActive ? 'brand' : 'neutral'}
-                    size={48}
-                  />
-
-                  <View style={styles.cardBody}>
-                    <View style={styles.cardTitleRow}>
-                      <Text variant="bodyStrong" numberOfLines={1} style={styles.cardTitle}>
-                        {business.name}
-                      </Text>
-                      {isActive ? <Badge label="Activo" tone="brand" /> : null}
-                    </View>
-
-                    {business.address ? (
-                      <Text variant="caption" color="textMuted" numberOfLines={1}>
-                        {business.address}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  <Ionicons name="chevron-forward" size={18} color={theme.color.textSubtle} />
-                </PressableScale>
-
-                {!isActive ? (
-                  <Button
-                    label="Usar este negocio"
-                    variant="ghost"
-                    size="sm"
-                    icon="swap-horizontal-outline"
-                    onPress={() => handleSelect(business.id)}
-                    fullWidth
-                  />
-                ) : null}
-              </View>
-            );
-          }}
+          renderItem={({ item: business }) => (
+            <BusinessRow
+              business={business}
+              isActive={business.id === activeBusinessId}
+              onOpen={() => router.push(routes.tabs.clients)}
+              onSelect={() => handleSelect(business.id)}
+            />
+          )}
         />
       )}
 
@@ -132,40 +83,12 @@ const styles = StyleSheet.create({
   skeletonHost: {
     paddingHorizontal: theme.layout.gutter,
   },
-  content: {
+  listContent: {
     paddingHorizontal: theme.layout.gutter,
     paddingBottom: 120,
-    gap: theme.spacing.md,
+    flexGrow: 1,
   },
-  card: {
-    backgroundColor: theme.color.surface,
-    borderRadius: theme.radius.xl,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.xs,
-  },
-  cardActive: {
-    borderColor: theme.color.brand,
-    backgroundColor: theme.color.brandSoft,
-  },
-  cardMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-  },
-  cardBody: {
-    flex: 1,
-    gap: 2,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  cardTitle: {
-    flexShrink: 1,
+  separator: {
+    height: theme.spacing.sm,
   },
 });

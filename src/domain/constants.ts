@@ -92,3 +92,66 @@ export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
   ADJUSTMENT: 'Ajuste',
   REVERSAL: 'Reverso',
 };
+
+/* ── Rol dentro de un negocio ─────────────────────────────────────────────── */
+
+/**
+ * Enum `BusinessUserRole` del backend: el rol de una persona **dentro de un
+ * negocio concreto**, guardado en la tabla de membresía `businessUser`. Es el
+ * que gobierna la autorización (quién puede fiar, cobrar, editar, invitar).
+ *
+ * ⚠️ No confundir con `User.role` (el `role?: string` del modelo `User`), que
+ * es el rol de plataforma (`USER`/`ADMIN`/`MODERATOR`/`SUSPENDED`) y que el
+ * backend hoy **no** usa para autorizar nada. Este de aquí sí manda.
+ *
+ * Quien crea un negocio queda `OWNER`; los demás entran como `ADMIN`, `CASHIER`
+ * o `VIEWER` por invitación.
+ */
+export const BUSINESS_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'VIEWER'] as const;
+export type BusinessRole = (typeof BUSINESS_ROLES)[number];
+
+export const BUSINESS_ROLE_LABEL: Record<BusinessRole, string> = {
+  OWNER: 'Dueño',
+  ADMIN: 'Administrador',
+  CASHIER: 'Cajero',
+  VIEWER: 'Solo lectura',
+};
+
+export const BUSINESS_ROLE_DESCRIPTION: Record<BusinessRole, string> = {
+  OWNER: 'Control total del negocio y del equipo.',
+  ADMIN: 'Registra y corrige clientes, deudas y pagos.',
+  CASHIER: 'Fía y cobra en el día a día; no corrige clientes.',
+  VIEWER: 'Solo consulta; no registra ni modifica nada.',
+};
+
+/**
+ * Roles que se le pueden **asignar** a alguien al invitarlo. `OWNER` queda
+ * fuera a propósito: el dueño es quien creó el negocio y no se reparte.
+ */
+export const ASSIGNABLE_BUSINESS_ROLES = ['ADMIN', 'CASHIER', 'VIEWER'] as const;
+export type AssignableBusinessRole = (typeof ASSIGNABLE_BUSINESS_ROLES)[number];
+
+export const ASSIGNABLE_BUSINESS_ROLE_OPTIONS = ASSIGNABLE_BUSINESS_ROLES.map((value) => ({
+  value,
+  label: BUSINESS_ROLE_LABEL[value],
+  description: BUSINESS_ROLE_DESCRIPTION[value],
+}));
+
+export const isBusinessRole = (value: string): value is BusinessRole =>
+  (BUSINESS_ROLES as readonly string[]).includes(value);
+
+/* ── Invitaciones ─────────────────────────────────────────────────────────── */
+
+/** Enum `InvitationType` del backend. La app de equipo solo crea `BUSINESS_USER`. */
+export const INVITATION_TYPES = ['DEBTOR', 'BUSINESS_USER'] as const;
+export type InvitationType = (typeof INVITATION_TYPES)[number];
+
+/** Enum `InvitationStatus` del backend. */
+export const INVITATION_STATUSES = ['PENDING', 'ACCEPTED', 'EXPIRED'] as const;
+export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
+
+export const INVITATION_STATUS_LABEL: Record<InvitationStatus, string> = {
+  PENDING: 'Pendiente',
+  ACCEPTED: 'Aceptada',
+  EXPIRED: 'Expirada',
+};
