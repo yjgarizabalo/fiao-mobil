@@ -88,6 +88,7 @@ Todo vive en `src/domain/`:
 | `constants.ts` | `DocumentType`, `PaymentMethod`, `DebtStatus`, `TransactionType` + etiquetas en español |
 | `models.ts`    | Entidades (`User`, `Business`, `Debtor`, `Debt`, `Payment`) y funciones de dominio      |
 | `mappers.ts`   | Traducción de las respuestas del backend a los modelos                                  |
+| `legal.ts`     | Términos y Condiciones: el documento que se acepta al registrarse, con su versión        |
 
 Funciones de dominio que hay que usar en vez de recalcular en la pantalla:
 
@@ -138,11 +139,12 @@ fiao-mobil-v2/
 │   ├── theme/                # tokens.ts (escala cruda) + index.ts (roles)
 │   ├── ui/                   # design system (24 componentes)
 │   └── features/             # una carpeta por área de negocio
-│       ├── auth/             # api · session · screens
+│       ├── auth/             # api · components · session · screens
 │       ├── businesses/       # api · state · components · screens
 │       ├── client/           # modo cliente: api · state · components · screens
 │       ├── debtors/          # api · components · screens
 │       ├── debts/            # api · components
+│       ├── legal/            # términos y condiciones: components · screens
 │       ├── payments/         # api · components
 │       ├── home/             # screens
 │       └── profile/          # screens
@@ -195,6 +197,7 @@ Así la pantalla se puede mover, reutilizar o probar sin pelear con el enrutador
 | `/movements`         | `app/(app)/(client)/movements.tsx` | Modo cliente: extracto de todas las tiendas         |
 | `/me`                | `app/(app)/(client)/me.tsx`        | Modo cliente: perfil (igual que `/profile`)         |
 | `/store/[id]`        | `app/(app)/store/[id].tsx`         | Modo cliente: mi cuenta en una tienda               |
+| `/legal/terms`       | `app/legal/terms.tsx`             | Términos y condiciones y tratamiento de datos        |
 | —                    | `app/+not-found.tsx`              | Ruta inexistente (deep link roto)                    |
 
 Reglas:
@@ -206,6 +209,9 @@ Reglas:
 - Los grupos `(auth)`, `(app)`, `(tabs)` no aparecen en la URL; sirven para colgar layouts.
 - `app/(app)/_layout.tsx` es la **guardia de sesión**: sin sesión redirige a `/login`.
   `app/(auth)/_layout.tsx` hace lo contrario. Ninguna pantalla debe comprobar la sesión.
+- `app/legal/` cuelga de la **raíz**, no de `(auth)` ni de `(app)`: un documento legal se
+  lee antes de tener cuenta y también después, y esos dos grupos redirigen según la
+  sesión. Cualquier pantalla que deba verse desde los dos lados va ahí.
 - Los formularios se presentan como `modal` en iOS y `card` en Android (ya configurado).
 - La barra de pestañas es propia: `src/ui/TabBar.tsx`. Hay **dos** juegos de pestañas,
   uno por modo: `(tabs)` para el tendero y `(client)` para el cliente. Cuál se ve lo
@@ -371,7 +377,7 @@ degradado `theme.gradient.hero`.
 | Estructura    | `Screen`, `AppBar`, `TabBar`, `Card`, `Divider`, `Spacer`, `SectionHeader`                                |
 | Texto         | `Text` (variantes de la escala), `AnimatedMoney` (cifra que cuenta)                                       |
 | Acción        | `Button`, `IconButton`, `Fab`, `PressableScale`                                                           |
-| Formulario    | `TextField`, `MoneyField`, `OptionPicker`, `SearchBar`, `SegmentedControl`                                |
+| Formulario    | `TextField`, `MoneyField`, `OptionPicker`, `SearchBar`, `SegmentedControl`, `Checkbox`, `CheckboxField` |
 | Datos         | `Avatar`, `Badge`, `ListRow`, `StatTile`, `IconBubble`                                                    |
 | Superposición | `Sheet` (bottom sheet con gesto), `Dialog` + `useDialog`, `ToastProvider` + `useToast`                    |
 | Estados       | `Skeleton`, `RowSkeleton`, `ListSkeleton`, `CardSkeleton`, `EmptyState`, `ErrorState`, `OfflineState`, `ListFooterLoader` |

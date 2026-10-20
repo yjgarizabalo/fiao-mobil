@@ -80,6 +80,16 @@ export const routes = {
       ({ pathname: '/store/[id]', params: { id: debtorId, businessId } }) as unknown as Href,
   },
 
+  /**
+   * Documentos legales. Cuelgan de la raíz y no de `(auth)` ni de `(app)`
+   * porque se leen desde los dos lados: antes de crear la cuenta y, más
+   * adelante, desde el perfil de alguien que ya entró.
+   */
+  legal: {
+    /** Términos y Condiciones y tratamiento de datos personales. */
+    terms: '/legal/terms' as Href,
+  },
+
   settings: {
     profile: '/settings/profile' as Href,
     security: '/settings/security' as Href,

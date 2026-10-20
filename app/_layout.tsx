@@ -24,6 +24,7 @@
  */
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -58,6 +59,17 @@ export default function RootLayout() {
                     <Stack.Screen name="index" options={{ animation: 'none' }} />
                     <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
                     <Stack.Screen name="(app)" options={{ animation: 'fade' }} />
+
+                    {/*
+                      Los documentos legales son hermanos de los dos grupos:
+                      se abren desde el registro (sin sesión) y más adelante
+                      desde el perfil (con sesión), así que no pueden colgar de
+                      `(auth)` ni de `(app)`, que redirigen según la sesión.
+                    */}
+                    <Stack.Screen
+                      name="legal/terms"
+                      options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
+                    />
                   </Stack>
 
                   {/*
